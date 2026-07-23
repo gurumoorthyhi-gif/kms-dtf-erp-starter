@@ -15,6 +15,7 @@ from app.modules.authentication import models as authentication_models
 from app.modules.customers import models as customer_models
 from app.modules.gang_sheets import models as gang_sheet_models
 from app.modules.orders import models as order_models
+from app.modules.production import models as production_models
 from app.modules.products import models as product_models
 
 _ = (
@@ -24,6 +25,7 @@ _ = (
     gang_sheet_models,
     order_models,
     product_models,
+    production_models,
 )
 
 config = context.config

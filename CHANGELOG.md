@@ -18,3 +18,4 @@
 - Added Phase 10 non-destructive Artwork Studio tools with background processing.
 - Added Phase 11 separate AI image engine jobs with progress, cancellation, and retry.
 - Added Phase 12 gang sheet layouts, nesting tools, metre usage, and 300 DPI export.
+- Added Phase 13 production queues, validated stages, quality, wastage, and history.

@@ -41,6 +41,7 @@ from app.modules.customers import CustomerRepository, CustomerService
 from app.modules.dashboard import DashboardRepository, DashboardService
 from app.modules.gang_sheets import GangSheetRepository, GangSheetService
 from app.modules.orders import OrderRepository, OrderService
+from app.modules.production import ProductionRepository, ProductionService
 from app.modules.products import ProductRepository, ProductService
 from app.ui.application import MainWindow
 
@@ -108,6 +109,10 @@ def main() -> int:
         paths.export_directory,
         authentication_service,
     )
+    production_service = ProductionService(
+        ProductionRepository(session_factory),
+        authentication_service,
+    )
 
     app = QApplication(sys.argv)
     window = MainWindow(
@@ -120,6 +125,7 @@ def main() -> int:
         artwork_studio_service=artwork_studio_service,
         ai_job_manager=ai_job_manager,
         gang_sheet_service=gang_sheet_service,
+        production_service=production_service,
     )
     window.show()
     try:

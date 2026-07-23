@@ -17,6 +17,7 @@ from app.modules.customers import CustomerService
 from app.modules.dashboard import DashboardService
 from app.modules.gang_sheets import GangSheetService
 from app.modules.orders import OrderService
+from app.modules.production import ProductionService
 from app.modules.products import ProductService
 from app.ui.application.router import PageRouter
 from app.ui.components import Sidebar, TopBar
@@ -29,6 +30,7 @@ from app.ui.pages import (
     GangSheetPage,
     LoginPage,
     OrdersPage,
+    ProductionPage,
     ProductsPage,
     SettingsPage,
 )
@@ -47,6 +49,7 @@ class MainWindow(QMainWindow):
         "studio": ("Artwork Studio", "Local non-destructive image tools"),
         "ai_tools": ("AI Tools", "Separate AI image engine jobs"),
         "gang_sheets": ("Gang Sheets", "Artwork nesting and original-quality export"),
+        "production": ("Production", "Production queue, stages, and quality"),
         "settings": ("Settings", "Application preferences"),
     }
 
@@ -61,6 +64,7 @@ class MainWindow(QMainWindow):
         artwork_studio_service: ArtworkStudioService | None = None,
         ai_job_manager: AIJobManager | None = None,
         gang_sheet_service: GangSheetService | None = None,
+        production_service: ProductionService | None = None,
     ) -> None:
         super().__init__()
         self._authentication_service = authentication_service
@@ -150,6 +154,15 @@ class MainWindow(QMainWindow):
             )
             self.router.register_page("gang_sheets", self.gang_sheet_page)
         self.sidebar.set_page_visible("gang_sheets", self.gang_sheet_page is not None)
+        self.production_page: ProductionPage | None = None
+        if production_service is not None and order_service is not None:
+            self.production_page = ProductionPage(
+                production_service,
+                order_service,
+                auto_refresh=False,
+            )
+            self.router.register_page("production", self.production_page)
+        self.sidebar.set_page_visible("production", self.production_page is not None)
         self.login_page: LoginPage | None = None
         if authentication_service is not None:
             self.login_page = LoginPage(authentication_service)
@@ -227,6 +240,11 @@ class MainWindow(QMainWindow):
             self.sidebar.set_page_visible("gang_sheets", can_view_gang_sheets)
             if can_view_gang_sheets:
                 self.gang_sheet_page.refresh()
+        if self.production_page is not None:
+            can_view_production = "production.view" in user.permissions
+            self.sidebar.set_page_visible("production", can_view_production)
+            if can_view_production:
+                self.production_page.refresh()
         self.navigate("dashboard")
 
     def logout(self) -> None:

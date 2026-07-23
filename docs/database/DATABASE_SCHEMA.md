@@ -50,3 +50,10 @@ Phase 12 adds `gang_sheets` and `gang_sheet_items`. Layout geometry is stored in
 millimetres with explicit rotation and layer order. Interactive editing uses
 managed previews, while deterministic 300 DPI exports load original artwork
 files sequentially.
+
+## Production
+
+Phase 13 adds `production_jobs`, `production_events`, and `quality_checks`.
+Production events are append-only through the service layer, so stage changes,
+assignments, pauses, reprints, wastage, quality results, and notes remain in the
+job history. Stage transitions follow the configured production sequence.
