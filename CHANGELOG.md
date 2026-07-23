@@ -15,3 +15,4 @@
 - Added Phase 7 products and configurable Decimal pricing rules.
 - Added Phase 8 order management with multi-item pricing, balances, and status history.
 - Added Phase 9 managed artwork storage, previews, metadata, versions, and approvals.
+- Added Phase 10 non-destructive Artwork Studio tools with background processing.

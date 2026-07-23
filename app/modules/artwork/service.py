@@ -92,6 +92,15 @@ class ArtworkService:
             raise FileNotFoundError("Artwork preview is missing")
         return path
 
+    def original_file(self, managed_path: str) -> Path:
+        """Resolve an original only through managed artwork storage."""
+
+        self._require("artwork.view")
+        path = self.storage.resolve(managed_path)
+        if not path.is_file():
+            raise FileNotFoundError("Artwork original is missing")
+        return path
+
     def _require(self, permission: str) -> None:
         if self.authentication_service is not None:
             self.authentication_service.require_permission(permission)
