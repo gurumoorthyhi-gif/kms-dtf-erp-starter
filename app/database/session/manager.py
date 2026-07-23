@@ -6,9 +6,11 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
 
-from sqlalchemy import Engine, create_engine
+from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.engine import URL, make_url
+from sqlalchemy.engine.interfaces import DBAPIConnection
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import ConnectionPoolEntry
 
 SessionFactory = sessionmaker[Session]
 
@@ -43,12 +45,27 @@ def create_database_engine(
 
     url = resolve_database_url(database_url, base_directory=base_directory)
     connect_args = {"check_same_thread": False} if url.get_backend_name() == "sqlite" else {}
-    return create_engine(
+    engine = create_engine(
         url,
         echo=echo,
         pool_pre_ping=True,
         connect_args=connect_args,
     )
+    if url.get_backend_name() == "sqlite":
+        event.listen(engine, "connect", _enable_sqlite_foreign_keys)
+    return engine
+
+
+def _enable_sqlite_foreign_keys(
+    dbapi_connection: DBAPIConnection,
+    connection_record: ConnectionPoolEntry,
+) -> None:
+    del connection_record
+    cursor = dbapi_connection.cursor()
+    try:
+        cursor.execute("PRAGMA foreign_keys=ON")
+    finally:
+        cursor.close()
 
 
 def create_session_factory(engine: Engine) -> SessionFactory:

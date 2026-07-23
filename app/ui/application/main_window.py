@@ -1,5 +1,7 @@
 """Main application shell."""
 
+from __future__ import annotations
+
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QMainWindow,
@@ -7,9 +9,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.modules.authentication import AuthenticatedUser, AuthenticationService
 from app.ui.application.router import PageRouter
 from app.ui.components import Sidebar, TopBar
-from app.ui.pages import DashboardPage, SettingsPage
+from app.ui.pages import DashboardPage, LoginPage, SettingsPage
 from app.ui.themes import APP_STYLESHEET
 
 
@@ -21,8 +24,12 @@ class MainWindow(QMainWindow):
         "settings": ("Settings", "Application preferences"),
     }
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        authentication_service: AuthenticationService | None = None,
+    ) -> None:
         super().__init__()
+        self._authentication_service = authentication_service
         self.setWindowTitle("KMS DTF ERP")
         self.resize(1280, 800)
         self.setMinimumSize(1024, 680)
@@ -39,6 +46,11 @@ class MainWindow(QMainWindow):
         self.router = PageRouter()
         self.router.register_page("dashboard", DashboardPage())
         self.router.register_page("settings", SettingsPage())
+        self.login_page: LoginPage | None = None
+        if authentication_service is not None:
+            self.login_page = LoginPage(authentication_service)
+            self.router.register_page("login", self.login_page)
+            self.login_page.login_succeeded.connect(self._complete_login)
 
         workspace = QVBoxLayout()
         workspace.setSpacing(18)
@@ -50,7 +62,11 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(root)
 
         self.sidebar.navigation_requested.connect(self.navigate)
-        self.navigate("dashboard")
+        self.top_bar.logout_requested.connect(self.logout)
+        if authentication_service is None:
+            self.navigate("dashboard")
+        else:
+            self._show_login()
 
     def navigate(self, page_name: str) -> None:
         """Switch shell pages and synchronize the navigation context."""
@@ -59,3 +75,25 @@ class MainWindow(QMainWindow):
         self.router.navigate(page_name)
         self.sidebar.set_active_page(page_name)
         self.top_bar.set_page_context(title, subtitle)
+
+    def _show_login(self) -> None:
+        self.sidebar.setVisible(False)
+        self.top_bar.setVisible(False)
+        if self.login_page is not None:
+            self.login_page.reset()
+        self.router.navigate("login")
+
+    def _complete_login(self, user: AuthenticatedUser) -> None:
+        self.sidebar.setVisible(True)
+        self.top_bar.setVisible(True)
+        self.top_bar.set_authenticated_user(user.full_name)
+        self.navigate("dashboard")
+
+    def logout(self) -> None:
+        """End the service session and return to the login page."""
+
+        if self._authentication_service is None:
+            return
+        self._authentication_service.logout()
+        self.top_bar.set_authenticated_user(None)
+        self._show_login()

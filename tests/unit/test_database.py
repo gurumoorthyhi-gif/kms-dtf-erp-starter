@@ -17,7 +17,16 @@ def test_database_health_and_metadata(tmp_path: Path) -> None:
     engine = create_database_engine(f"sqlite:///{tmp_path / 'health.db'}")
 
     assert check_database_health(engine) is True
-    assert Base.metadata.tables == {}
+    assert set(Base.metadata.tables) == {
+        "activity_logs",
+        "permissions",
+        "role_permissions",
+        "roles",
+        "user_roles",
+        "users",
+    }
+    assert "customers" not in Base.metadata.tables
+    assert "orders" not in Base.metadata.tables
 
     engine.dispose()
 
@@ -59,3 +68,13 @@ def test_relative_sqlite_url_resolves_against_application_path(tmp_path: Path) -
     )
 
     assert Path(url.database or "") == (tmp_path / "data" / "application.db").resolve()
+
+
+def test_sqlite_foreign_keys_are_enabled(tmp_path: Path) -> None:
+    engine = create_database_engine(f"sqlite:///{tmp_path / 'foreign-keys.db'}")
+
+    with engine.connect() as connection:
+        enabled = connection.scalar(text("PRAGMA foreign_keys"))
+
+    assert enabled == 1
+    engine.dispose()

@@ -10,14 +10,18 @@ from sqlalchemy import engine_from_config, pool
 from app.core.config import Settings
 from app.database.base import Base
 from app.database.session import resolve_database_url
+from app.modules.authentication import models as authentication_models
+
+_ = authentication_models
 
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+configured_database_url = config.attributes.get("database_url")
 settings = Settings.load()
-database_url = resolve_database_url(settings.database_url)
+database_url = resolve_database_url(configured_database_url or settings.database_url)
 config.set_main_option(
     "sqlalchemy.url",
     database_url.render_as_string(hide_password=False).replace("%", "%%"),
