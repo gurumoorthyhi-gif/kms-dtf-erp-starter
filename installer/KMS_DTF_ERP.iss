@@ -31,10 +31,3 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch KMS DTF ERP"; Flags: nowait postinstall skipifsilent
-
-[Code]
-function InitializeSetup(): Boolean;
-begin
-  { Stable AppId upgrades in place; runtime data stays outside {app}. }
-  Result := True;
-end;
