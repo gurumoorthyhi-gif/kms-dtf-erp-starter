@@ -11,8 +11,9 @@ from app.core.config import Settings
 from app.database.base import Base
 from app.database.session import resolve_database_url
 from app.modules.authentication import models as authentication_models
+from app.modules.customers import models as customer_models
 
-_ = authentication_models
+_ = authentication_models, customer_models
 
 config = context.config
 

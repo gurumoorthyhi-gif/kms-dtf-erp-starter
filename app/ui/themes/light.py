@@ -260,4 +260,44 @@ QLabel#dashboardError {
     color: #B43869;
     padding: 8px 12px;
 }
+
+QFrame#customerToolbar {
+    background: rgba(255, 255, 255, 205);
+    border: 1px solid rgba(255, 255, 255, 225);
+    border-radius: 16px;
+}
+
+QLineEdit#customerSearch, QLineEdit#customerInput, QTextEdit#customerNotes {
+    min-height: 38px;
+    background: rgba(238, 243, 255, 180);
+    border: 1px solid rgba(108, 92, 231, 35);
+    border-radius: 10px;
+    color: #25304F;
+    padding: 0 12px;
+}
+
+QTableWidget#customerTable {
+    background: rgba(255, 255, 255, 205);
+    alternate-background-color: rgba(238, 243, 255, 120);
+    border: 1px solid rgba(255, 255, 255, 225);
+    border-radius: 16px;
+    gridline-color: rgba(79, 124, 255, 20);
+    color: #3D4868;
+}
+
+QTableWidget#customerTable::item {
+    min-height: 38px;
+    padding: 6px;
+}
+
+QTableWidget#customerTable::item:selected {
+    background: rgba(108, 92, 231, 38);
+    color: #41379F;
+}
+
+QLabel#detailsTitle {
+    color: #202A49;
+    font-size: 22px;
+    font-weight: 700;
+}
 """

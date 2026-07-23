@@ -19,13 +19,15 @@ def test_database_health_and_metadata(tmp_path: Path) -> None:
     assert check_database_health(engine) is True
     assert set(Base.metadata.tables) == {
         "activity_logs",
+        "customer_addresses",
+        "customer_file_references",
+        "customers",
         "permissions",
         "role_permissions",
         "roles",
         "user_roles",
         "users",
     }
-    assert "customers" not in Base.metadata.tables
     assert "orders" not in Base.metadata.tables
 
     engine.dispose()

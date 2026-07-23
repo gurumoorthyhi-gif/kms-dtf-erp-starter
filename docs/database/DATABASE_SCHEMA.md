@@ -13,3 +13,10 @@ its schema through a reviewed Alembic revision.
 Phase 4 introduces `users`, `roles`, `permissions`, `user_roles`,
 `role_permissions`, and immutable `activity_logs`. Passwords are represented only
 by versioned scrypt hashes. Customer and order tables remain out of scope.
+
+## Customers
+
+Phase 6 adds `customers`, `customer_addresses`, and
+`customer_file_references`. Customer codes are unique, addresses are separated
+into billing and shipping records, and file references store managed relative
+paths rather than machine-specific absolute paths. Order tables remain out of scope.

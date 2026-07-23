@@ -46,6 +46,7 @@ class Sidebar(QFrame):
         self._buttons: dict[str, QToolButton] = {}
         self._labels = {
             "dashboard": "Dashboard",
+            "customers": "Customers",
             "settings": "Settings",
         }
         self._build_ui()
@@ -128,7 +129,7 @@ class Sidebar(QFrame):
     def expand(self) -> None:
         """Animate to the labeled navigation state."""
 
-        if self._expanded:
+        if self._expanded and self.width() == EXPANDED_WIDTH:
             return
         self._expanded = True
         self._brand_name.setVisible(True)
@@ -140,7 +141,7 @@ class Sidebar(QFrame):
     def collapse(self) -> None:
         """Animate to the compact icon-only state."""
 
-        if not self._expanded:
+        if not self._expanded and self.width() == COLLAPSED_WIDTH:
             return
         self._expanded = False
         self._brand_name.setVisible(False)
@@ -170,3 +171,6 @@ class Sidebar(QFrame):
             button.setProperty("active", name == page_name)
             button.style().unpolish(button)
             button.style().polish(button)
+
+    def set_page_visible(self, page_name: str, visible: bool) -> None:
+        self._buttons[page_name].setVisible(visible)

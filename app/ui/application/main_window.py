@@ -10,10 +10,11 @@ from PySide6.QtWidgets import (
 )
 
 from app.modules.authentication import AuthenticatedUser, AuthenticationService
+from app.modules.customers import CustomerService
 from app.modules.dashboard import DashboardService
 from app.ui.application.router import PageRouter
 from app.ui.components import Sidebar, TopBar
-from app.ui.pages import DashboardPage, LoginPage, SettingsPage
+from app.ui.pages import CustomersPage, DashboardPage, LoginPage, SettingsPage
 from app.ui.themes import APP_STYLESHEET
 
 
@@ -22,6 +23,7 @@ class MainWindow(QMainWindow):
 
     PAGE_CONTEXT = {
         "dashboard": ("Dashboard", "Workspace overview"),
+        "customers": ("Customers", "Customer records and contacts"),
         "settings": ("Settings", "Application preferences"),
     }
 
@@ -29,6 +31,7 @@ class MainWindow(QMainWindow):
         self,
         authentication_service: AuthenticationService | None = None,
         dashboard_service: DashboardService | None = None,
+        customer_service: CustomerService | None = None,
     ) -> None:
         super().__init__()
         self._authentication_service = authentication_service
@@ -52,7 +55,12 @@ class MainWindow(QMainWindow):
         )
         self.dashboard_page.navigation_requested.connect(self.navigate)
         self.router.register_page("dashboard", self.dashboard_page)
+        self.customers_page: CustomersPage | None = None
+        if customer_service is not None:
+            self.customers_page = CustomersPage(customer_service, auto_refresh=False)
+            self.router.register_page("customers", self.customers_page)
         self.router.register_page("settings", SettingsPage())
+        self.sidebar.set_page_visible("customers", customer_service is not None)
         self.login_page: LoginPage | None = None
         if authentication_service is not None:
             self.login_page = LoginPage(authentication_service)
@@ -95,6 +103,11 @@ class MainWindow(QMainWindow):
         self.top_bar.setVisible(True)
         self.top_bar.set_authenticated_user(user.full_name)
         self.dashboard_page.refresh()
+        if self.customers_page is not None:
+            can_view_customers = "customers.view" in user.permissions
+            self.sidebar.set_page_visible("customers", can_view_customers)
+            if can_view_customers:
+                self.customers_page.refresh()
         self.navigate("dashboard")
 
     def logout(self) -> None:
