@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
 )
 
 from app.modules.authentication import AuthenticatedUser, AuthenticationService
+from app.modules.dashboard import DashboardService
 from app.ui.application.router import PageRouter
 from app.ui.components import Sidebar, TopBar
 from app.ui.pages import DashboardPage, LoginPage, SettingsPage
@@ -27,6 +28,7 @@ class MainWindow(QMainWindow):
     def __init__(
         self,
         authentication_service: AuthenticationService | None = None,
+        dashboard_service: DashboardService | None = None,
     ) -> None:
         super().__init__()
         self._authentication_service = authentication_service
@@ -44,7 +46,12 @@ class MainWindow(QMainWindow):
         self.sidebar = Sidebar()
         self.top_bar = TopBar()
         self.router = PageRouter()
-        self.router.register_page("dashboard", DashboardPage())
+        self.dashboard_page = DashboardPage(
+            dashboard_service,
+            auto_refresh=authentication_service is None,
+        )
+        self.dashboard_page.navigation_requested.connect(self.navigate)
+        self.router.register_page("dashboard", self.dashboard_page)
         self.router.register_page("settings", SettingsPage())
         self.login_page: LoginPage | None = None
         if authentication_service is not None:
@@ -87,6 +94,7 @@ class MainWindow(QMainWindow):
         self.sidebar.setVisible(True)
         self.top_bar.setVisible(True)
         self.top_bar.set_authenticated_user(user.full_name)
+        self.dashboard_page.refresh()
         self.navigate("dashboard")
 
     def logout(self) -> None:

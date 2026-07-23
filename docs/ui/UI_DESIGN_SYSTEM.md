@@ -19,3 +19,11 @@
 - Sidebar tooltips in the collapsed state
 - Active navigation uses a subtle gradient highlight
 - Dashboard and Settings remain presentation-only placeholders
+
+## Phase 5 dashboard
+
+- Six service-backed KPI cards with typed zero states
+- Date filters for today, seven days, and thirty days
+- Production pipeline, recent activity, and low-stock panels
+- Quick actions are limited to refresh and existing Settings navigation
+- Dashboard UI imports no database or ORM modules

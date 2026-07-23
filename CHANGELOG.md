@@ -10,3 +10,4 @@
 - Completed Phase 2 with centralized path resolution and global exception handling.
 - Added the Phase 3 Qt Widgets shell with animated navigation and placeholder pages.
 - Added Phase 4 authentication, users, roles, permissions, login/logout, and activity logs.
+- Added the Phase 5 operational dashboard with service-backed empty states and activity.

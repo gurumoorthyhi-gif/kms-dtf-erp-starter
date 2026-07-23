@@ -146,4 +146,118 @@ QPushButton#secondaryButton {
     font-weight: 600;
     padding: 0 12px;
 }
+
+QFrame#dashboardFilterBar {
+    background: rgba(255, 255, 255, 180);
+    border: 1px solid rgba(255, 255, 255, 220);
+    border-radius: 16px;
+}
+
+QLabel#filterLabel, QLabel#panelTitle {
+    color: #29345C;
+    font-size: 15px;
+    font-weight: 700;
+}
+
+QComboBox#periodCombo {
+    min-width: 130px;
+    min-height: 34px;
+    background: rgba(238, 243, 255, 210);
+    border: 1px solid rgba(108, 92, 231, 38);
+    border-radius: 10px;
+    color: #455071;
+    padding: 0 10px;
+}
+
+QScrollArea#dashboardScroll, QWidget#dashboardContent {
+    background: transparent;
+}
+
+QFrame#kpiCard, QFrame#dashboardPanel {
+    background: rgba(255, 255, 255, 205);
+    border: 1px solid rgba(255, 255, 255, 225);
+    border-radius: 18px;
+}
+
+QFrame#kpiCard[accent="purple"] {
+    border-top: 3px solid #6C5CE7;
+}
+
+QFrame#kpiCard[accent="blue"] {
+    border-top: 3px solid #4F7CFF;
+}
+
+QFrame#kpiCard[accent="cyan"] {
+    border-top: 3px solid #42D3FF;
+}
+
+QFrame#kpiCard[accent="green"] {
+    border-top: 3px solid #40C9A2;
+}
+
+QFrame#kpiCard[accent="pink"] {
+    border-top: 3px solid #F45CB4;
+}
+
+QLabel#kpiLabel {
+    color: #7A84A3;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+QLabel#kpiValue {
+    color: #202A49;
+    font-size: 25px;
+    font-weight: 700;
+}
+
+QFrame#pipelineStage {
+    background: rgba(238, 243, 255, 155);
+    border: 1px solid rgba(79, 124, 255, 24);
+    border-radius: 11px;
+}
+
+QLabel#stageName, QLabel#activityDetail, QLabel#emptyState {
+    color: #7A84A3;
+    font-size: 11px;
+}
+
+QLabel#stageCount {
+    color: #4F61A8;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+QFrame#activityRow {
+    background: rgba(238, 243, 255, 120);
+    border: 0;
+    border-radius: 9px;
+}
+
+QLabel#activityAction {
+    color: #455071;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+QPushButton#dashboardAction {
+    min-height: 36px;
+    background: rgba(108, 92, 231, 18);
+    border: 1px solid rgba(108, 92, 231, 35);
+    border-radius: 10px;
+    color: #5147B8;
+    font-weight: 600;
+}
+
+QPushButton#dashboardAction:hover {
+    background: rgba(108, 92, 231, 32);
+}
+
+QLabel#dashboardError {
+    background: rgba(244, 92, 180, 20);
+    border: 1px solid rgba(244, 92, 180, 45);
+    border-radius: 10px;
+    color: #B43869;
+    padding: 8px 12px;
+}
 """

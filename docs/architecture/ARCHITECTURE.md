@@ -16,3 +16,8 @@ thread handling only for SQLite URLs, keeping other SQLAlchemy backends availabl
 Authentication follows the same UI → Service → Repository → Database boundary.
 The UI receives only an authentication service and safe current-user identity;
 password verification and activity recording remain below the UI layer.
+
+The operational dashboard reads through `DashboardService` and
+`DashboardRepository`. Until future business tables are introduced, order,
+production, payment, revenue, and inventory metrics return explicit typed
+zero/empty states; recent activity uses the existing activity-log table.

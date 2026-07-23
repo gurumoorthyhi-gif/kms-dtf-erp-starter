@@ -12,6 +12,7 @@ from app.modules.authentication import (
     RoleRepository,
     UserRepository,
 )
+from app.modules.dashboard import DashboardService, EmptyDashboardRepository
 from app.ui.application import MainWindow
 from app.ui.pages import LoginPage
 
@@ -53,13 +54,18 @@ def test_login_page_rejects_invalid_credentials(qtbot, authentication_service) -
 
 
 def test_main_window_login_and_logout_flow(qtbot, authentication_service) -> None:
-    window = MainWindow(authentication_service)
+    dashboard_service = DashboardService(
+        EmptyDashboardRepository(),
+        authentication_service,
+    )
+    window = MainWindow(authentication_service, dashboard_service)
     qtbot.addWidget(window)
     window.show()
 
     assert window.router.current_page_name == "login"
     assert window.sidebar.isHidden()
     assert window.login_page is not None
+    assert window.dashboard_page.error_label.isHidden()
 
     window.login_page.username_input.setText("admin")
     window.login_page.password_input.setText(ADMIN_PASSWORD)
@@ -67,6 +73,7 @@ def test_main_window_login_and_logout_flow(qtbot, authentication_service) -> Non
 
     assert window.router.current_page_name == "dashboard"
     assert window.sidebar.isVisible()
+    assert window.dashboard_page.error_label.isHidden()
     assert authentication_service.current_session.is_authenticated is True
 
     window.logout()
