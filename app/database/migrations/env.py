@@ -12,9 +12,10 @@ from app.database.base import Base
 from app.database.session import resolve_database_url
 from app.modules.authentication import models as authentication_models
 from app.modules.customers import models as customer_models
+from app.modules.orders import models as order_models
 from app.modules.products import models as product_models
 
-_ = authentication_models, customer_models, product_models
+_ = authentication_models, customer_models, order_models, product_models
 
 config = context.config
 

@@ -112,7 +112,7 @@ def test_logout_and_permissions_are_enforced(authentication_context) -> None:
 
     service.require_permission("users.manage")
     with pytest.raises(AuthorizationError):
-        service.require_permission("orders.manage")
+        service.require_permission("unknown.manage")
     service.logout()
 
     assert service.current_session.is_authenticated is False

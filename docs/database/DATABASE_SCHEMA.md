@@ -25,3 +25,10 @@ paths rather than machine-specific absolute paths. Order tables remain out of sc
 
 Phase 7 adds product categories, products, quantity/metre price tiers, discount
 rules, and tax configuration. Monetary values use fixed-precision decimals.
+
+## Orders
+
+Phase 8 adds `orders`, `order_items`, and `order_status_history`. Orders snapshot
+the calculated unit prices and totals for each item, store advance and balance
+amounts, and retain every workflow status transition. Artwork processing remains
+out of scope until Phase 9.
