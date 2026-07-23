@@ -32,3 +32,10 @@ Phase 8 adds `orders`, `order_items`, and `order_status_history`. Orders snapsho
 the calculated unit prices and totals for each item, store advance and balance
 amounts, and retain every workflow status transition. Artwork processing remains
 out of scope until Phase 9.
+
+## Artwork library
+
+Phase 9 adds `artworks`, `artwork_versions`, and `artwork_approvals`. Database
+records contain managed relative paths; originals and optimized previews remain
+in application-managed storage. Artwork can be linked to customers and orders,
+and every uploaded version retains its own metadata and approval history.

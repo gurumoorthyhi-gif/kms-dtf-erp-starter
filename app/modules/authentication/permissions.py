@@ -12,6 +12,9 @@ PERMISSIONS = {
     "products.manage": "Manage products and pricing rules",
     "orders.view": "View customer orders",
     "orders.manage": "Create and manage customer orders",
+    "artwork.view": "View artwork and previews",
+    "artwork.manage": "Upload and version artwork",
+    "artwork.approve": "Record artwork approval decisions",
 }
 
 ROLE_PERMISSIONS = {
@@ -26,12 +29,32 @@ ROLE_PERMISSIONS = {
             "products.manage",
             "orders.view",
             "orders.manage",
+            "artwork.view",
+            "artwork.manage",
+            "artwork.approve",
         }
     ),
-    "Designer": frozenset({"dashboard.view", "customers.view", "products.view", "orders.view"}),
+    "Designer": frozenset(
+        {
+            "dashboard.view",
+            "customers.view",
+            "products.view",
+            "orders.view",
+            "artwork.view",
+            "artwork.manage",
+        }
+    ),
     "Production Operator": frozenset({"dashboard.view", "orders.view"}),
     "Accountant": frozenset({"dashboard.view", "reports.view", "customers.view"}),
     "Packing Staff": frozenset({"dashboard.view", "orders.view"}),
     "Dispatch Staff": frozenset({"dashboard.view", "orders.view"}),
-    "Viewer": frozenset({"dashboard.view", "customers.view", "products.view", "orders.view"}),
+    "Viewer": frozenset(
+        {
+            "dashboard.view",
+            "customers.view",
+            "products.view",
+            "orders.view",
+            "artwork.view",
+        }
+    ),
 }

@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.modules.artwork import ArtworkService
 from app.modules.authentication import AuthenticatedUser, AuthenticationService
 from app.modules.customers import CustomerService
 from app.modules.dashboard import DashboardService
@@ -17,6 +18,7 @@ from app.modules.products import ProductService
 from app.ui.application.router import PageRouter
 from app.ui.components import Sidebar, TopBar
 from app.ui.pages import (
+    ArtworkLibraryPage,
     CustomersPage,
     DashboardPage,
     LoginPage,
@@ -35,6 +37,7 @@ class MainWindow(QMainWindow):
         "customers": ("Customers", "Customer records and contacts"),
         "products": ("Products", "Products and pricing rules"),
         "orders": ("Orders", "Order workflow and production status"),
+        "artwork": ("Artwork", "Artwork library, versions, and approvals"),
         "settings": ("Settings", "Application preferences"),
     }
 
@@ -45,6 +48,7 @@ class MainWindow(QMainWindow):
         customer_service: CustomerService | None = None,
         product_service: ProductService | None = None,
         order_service: OrderService | None = None,
+        artwork_service: ArtworkService | None = None,
     ) -> None:
         super().__init__()
         self._authentication_service = authentication_service
@@ -93,6 +97,20 @@ class MainWindow(QMainWindow):
             )
             self.router.register_page("orders", self.orders_page)
         self.sidebar.set_page_visible("orders", self.orders_page is not None)
+        self.artwork_page: ArtworkLibraryPage | None = None
+        if (
+            artwork_service is not None
+            and customer_service is not None
+            and order_service is not None
+        ):
+            self.artwork_page = ArtworkLibraryPage(
+                artwork_service,
+                customer_service,
+                order_service,
+                auto_refresh=False,
+            )
+            self.router.register_page("artwork", self.artwork_page)
+        self.sidebar.set_page_visible("artwork", self.artwork_page is not None)
         self.login_page: LoginPage | None = None
         if authentication_service is not None:
             self.login_page = LoginPage(authentication_service)
@@ -150,6 +168,11 @@ class MainWindow(QMainWindow):
             self.sidebar.set_page_visible("orders", can_view_orders)
             if can_view_orders:
                 self.orders_page.refresh()
+        if self.artwork_page is not None:
+            can_view_artwork = "artwork.view" in user.permissions
+            self.sidebar.set_page_visible("artwork", can_view_artwork)
+            if can_view_artwork:
+                self.artwork_page.refresh()
         self.navigate("dashboard")
 
     def logout(self) -> None:

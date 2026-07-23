@@ -12,6 +12,12 @@ from app.database import (
     create_session_factory,
     upgrade_database,
 )
+from app.modules.artwork import (
+    ArtworkRepository,
+    ArtworkService,
+    ArtworkStorage,
+    PreviewService,
+)
 from app.modules.authentication import (
     ActivityRepository,
     AuthenticationService,
@@ -68,6 +74,11 @@ def main() -> int:
         product_service,
         authentication_service,
     )
+    artwork_service = ArtworkService(
+        ArtworkRepository(session_factory),
+        ArtworkStorage(paths.artwork_directory, PreviewService()),
+        authentication_service,
+    )
 
     app = QApplication(sys.argv)
     window = MainWindow(
@@ -76,6 +87,7 @@ def main() -> int:
         customer_service=customer_service,
         product_service=product_service,
         order_service=order_service,
+        artwork_service=artwork_service,
     )
     window.show()
     try:

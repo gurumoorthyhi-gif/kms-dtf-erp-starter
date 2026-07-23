@@ -1,0 +1,16 @@
+from pathlib import Path
+
+from sqlalchemy import inspect
+
+from app.database import create_database_engine, upgrade_database
+
+
+def test_artwork_migration_creates_library_tables(tmp_path: Path) -> None:
+    url = "sqlite:///artwork.db"
+    upgrade_database(url, base_directory=tmp_path)
+    engine = create_database_engine(url, base_directory=tmp_path)
+
+    assert {"artworks", "artwork_versions", "artwork_approvals"} <= set(
+        inspect(engine).get_table_names()
+    )
+    engine.dispose()
