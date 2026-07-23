@@ -13,10 +13,18 @@ from app.database.session import resolve_database_url
 from app.modules.artwork import models as artwork_models
 from app.modules.authentication import models as authentication_models
 from app.modules.customers import models as customer_models
+from app.modules.gang_sheets import models as gang_sheet_models
 from app.modules.orders import models as order_models
 from app.modules.products import models as product_models
 
-_ = artwork_models, authentication_models, customer_models, order_models, product_models
+_ = (
+    artwork_models,
+    authentication_models,
+    customer_models,
+    gang_sheet_models,
+    order_models,
+    product_models,
+)
 
 config = context.config
 

@@ -26,6 +26,8 @@ def test_database_health_and_metadata(tmp_path: Path) -> None:
         "customer_file_references",
         "customers",
         "discount_rules",
+        "gang_sheet_items",
+        "gang_sheets",
         "order_items",
         "order_status_history",
         "orders",

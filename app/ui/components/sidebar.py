@@ -52,6 +52,7 @@ class Sidebar(QFrame):
             "artwork": "Artwork",
             "studio": "Artwork Studio",
             "ai_tools": "AI Tools",
+            "gang_sheets": "Gang Sheets",
             "settings": "Settings",
         }
         self._build_ui()
