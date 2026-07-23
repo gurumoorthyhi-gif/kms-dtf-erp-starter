@@ -12,9 +12,10 @@ from PySide6.QtWidgets import (
 from app.modules.authentication import AuthenticatedUser, AuthenticationService
 from app.modules.customers import CustomerService
 from app.modules.dashboard import DashboardService
+from app.modules.products import ProductService
 from app.ui.application.router import PageRouter
 from app.ui.components import Sidebar, TopBar
-from app.ui.pages import CustomersPage, DashboardPage, LoginPage, SettingsPage
+from app.ui.pages import CustomersPage, DashboardPage, LoginPage, ProductsPage, SettingsPage
 from app.ui.themes import APP_STYLESHEET
 
 
@@ -24,6 +25,7 @@ class MainWindow(QMainWindow):
     PAGE_CONTEXT = {
         "dashboard": ("Dashboard", "Workspace overview"),
         "customers": ("Customers", "Customer records and contacts"),
+        "products": ("Products", "Products and pricing rules"),
         "settings": ("Settings", "Application preferences"),
     }
 
@@ -32,6 +34,7 @@ class MainWindow(QMainWindow):
         authentication_service: AuthenticationService | None = None,
         dashboard_service: DashboardService | None = None,
         customer_service: CustomerService | None = None,
+        product_service: ProductService | None = None,
     ) -> None:
         super().__init__()
         self._authentication_service = authentication_service
@@ -61,6 +64,11 @@ class MainWindow(QMainWindow):
             self.router.register_page("customers", self.customers_page)
         self.router.register_page("settings", SettingsPage())
         self.sidebar.set_page_visible("customers", customer_service is not None)
+        self.products_page: ProductsPage | None = None
+        if product_service is not None:
+            self.products_page = ProductsPage(product_service, auto_refresh=False)
+            self.router.register_page("products", self.products_page)
+        self.sidebar.set_page_visible("products", product_service is not None)
         self.login_page: LoginPage | None = None
         if authentication_service is not None:
             self.login_page = LoginPage(authentication_service)
@@ -108,6 +116,11 @@ class MainWindow(QMainWindow):
             self.sidebar.set_page_visible("customers", can_view_customers)
             if can_view_customers:
                 self.customers_page.refresh()
+        if self.products_page is not None:
+            can_view_products = "products.view" in user.permissions
+            self.sidebar.set_page_visible("products", can_view_products)
+            if can_view_products:
+                self.products_page.refresh()
         self.navigate("dashboard")
 
     def logout(self) -> None:

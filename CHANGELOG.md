@@ -12,3 +12,4 @@
 - Added Phase 4 authentication, users, roles, permissions, login/logout, and activity logs.
 - Added the Phase 5 operational dashboard with service-backed empty states and activity.
 - Added Phase 6 customer management with addresses, validation, search, and deactivation.
+- Added Phase 7 products and configurable Decimal pricing rules.
