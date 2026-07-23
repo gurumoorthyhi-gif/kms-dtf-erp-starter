@@ -28,6 +28,11 @@ PERMISSIONS = {
     "sales.manage": "Create quotations, invoices, and credit notes",
     "payments.view": "View payment history",
     "payments.manage": "Record customer payments",
+    "packing.view": "View packing records and lists",
+    "packing.manage": "Create and complete packing records",
+    "dispatch.view": "View dispatch and delivery status",
+    "dispatch.manage": "Create dispatches and update delivery status",
+    "dispatch.override": "Dispatch an order before packing is complete",
 }
 
 ROLE_PERMISSIONS = {
@@ -58,6 +63,11 @@ ROLE_PERMISSIONS = {
             "sales.manage",
             "payments.view",
             "payments.manage",
+            "packing.view",
+            "packing.manage",
+            "dispatch.view",
+            "dispatch.manage",
+            "dispatch.override",
         }
     ),
     "Designer": frozenset(
@@ -97,10 +107,25 @@ ROLE_PERMISSIONS = {
         }
     ),
     "Packing Staff": frozenset(
-        {"dashboard.view", "orders.view", "production.view", "production.manage"}
+        {
+            "dashboard.view",
+            "orders.view",
+            "production.view",
+            "production.manage",
+            "packing.view",
+            "packing.manage",
+        }
     ),
     "Dispatch Staff": frozenset(
-        {"dashboard.view", "orders.view", "production.view", "production.manage"}
+        {
+            "dashboard.view",
+            "orders.view",
+            "production.view",
+            "production.manage",
+            "packing.view",
+            "dispatch.view",
+            "dispatch.manage",
+        }
     ),
     "Viewer": frozenset(
         {
