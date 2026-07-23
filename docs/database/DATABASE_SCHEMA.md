@@ -43,3 +43,10 @@ and every uploaded version retains its own metadata and approval history.
 Phase 10 adds no database tables. Artwork Studio edits use the existing artwork
 version records, preserving the original while each saved edit becomes a new
 managed version.
+
+## Gang sheets
+
+Phase 12 adds `gang_sheets` and `gang_sheet_items`. Layout geometry is stored in
+millimetres with explicit rotation and layer order. Interactive editing uses
+managed previews, while deterministic 300 DPI exports load original artwork
+files sequentially.

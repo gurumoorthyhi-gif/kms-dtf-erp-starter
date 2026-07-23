@@ -39,6 +39,7 @@ from app.modules.authentication import (
 )
 from app.modules.customers import CustomerRepository, CustomerService
 from app.modules.dashboard import DashboardRepository, DashboardService
+from app.modules.gang_sheets import GangSheetRepository, GangSheetService
 from app.modules.orders import OrderRepository, OrderService
 from app.modules.products import ProductRepository, ProductService
 from app.ui.application import MainWindow
@@ -101,6 +102,12 @@ def main() -> int:
         AIResultHandler(artwork_service),
         paths.local_storage_directory / "ai_results",
     )
+    gang_sheet_service = GangSheetService(
+        GangSheetRepository(session_factory),
+        artwork_service,
+        paths.export_directory,
+        authentication_service,
+    )
 
     app = QApplication(sys.argv)
     window = MainWindow(
@@ -112,6 +119,7 @@ def main() -> int:
         artwork_service=artwork_service,
         artwork_studio_service=artwork_studio_service,
         ai_job_manager=ai_job_manager,
+        gang_sheet_service=gang_sheet_service,
     )
     window.show()
     try:

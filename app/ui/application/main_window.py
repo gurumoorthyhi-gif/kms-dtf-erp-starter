@@ -15,6 +15,7 @@ from app.modules.artwork_studio import ArtworkStudioService
 from app.modules.authentication import AuthenticatedUser, AuthenticationService
 from app.modules.customers import CustomerService
 from app.modules.dashboard import DashboardService
+from app.modules.gang_sheets import GangSheetService
 from app.modules.orders import OrderService
 from app.modules.products import ProductService
 from app.ui.application.router import PageRouter
@@ -25,6 +26,7 @@ from app.ui.pages import (
     ArtworkStudioPage,
     CustomersPage,
     DashboardPage,
+    GangSheetPage,
     LoginPage,
     OrdersPage,
     ProductsPage,
@@ -44,6 +46,7 @@ class MainWindow(QMainWindow):
         "artwork": ("Artwork", "Artwork library, versions, and approvals"),
         "studio": ("Artwork Studio", "Local non-destructive image tools"),
         "ai_tools": ("AI Tools", "Separate AI image engine jobs"),
+        "gang_sheets": ("Gang Sheets", "Artwork nesting and original-quality export"),
         "settings": ("Settings", "Application preferences"),
     }
 
@@ -57,6 +60,7 @@ class MainWindow(QMainWindow):
         artwork_service: ArtworkService | None = None,
         artwork_studio_service: ArtworkStudioService | None = None,
         ai_job_manager: AIJobManager | None = None,
+        gang_sheet_service: GangSheetService | None = None,
     ) -> None:
         super().__init__()
         self._authentication_service = authentication_service
@@ -137,6 +141,15 @@ class MainWindow(QMainWindow):
             )
             self.router.register_page("ai_tools", self.ai_tools_page)
         self.sidebar.set_page_visible("ai_tools", self.ai_tools_page is not None)
+        self.gang_sheet_page: GangSheetPage | None = None
+        if artwork_service is not None and gang_sheet_service is not None:
+            self.gang_sheet_page = GangSheetPage(
+                gang_sheet_service,
+                artwork_service,
+                auto_refresh=False,
+            )
+            self.router.register_page("gang_sheets", self.gang_sheet_page)
+        self.sidebar.set_page_visible("gang_sheets", self.gang_sheet_page is not None)
         self.login_page: LoginPage | None = None
         if authentication_service is not None:
             self.login_page = LoginPage(authentication_service)
@@ -209,6 +222,11 @@ class MainWindow(QMainWindow):
             self.sidebar.set_page_visible("ai_tools", can_use_ai)
             if can_use_ai:
                 self.ai_tools_page.refresh()
+        if self.gang_sheet_page is not None:
+            can_view_gang_sheets = "gang_sheets.view" in user.permissions
+            self.sidebar.set_page_visible("gang_sheets", can_view_gang_sheets)
+            if can_view_gang_sheets:
+                self.gang_sheet_page.refresh()
         self.navigate("dashboard")
 
     def logout(self) -> None:
