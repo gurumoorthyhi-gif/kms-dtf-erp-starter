@@ -51,6 +51,7 @@ class Sidebar(QFrame):
             "orders": "Orders",
             "artwork": "Artwork",
             "studio": "Artwork Studio",
+            "ai_tools": "AI Tools",
             "settings": "Settings",
         }
         self._build_ui()

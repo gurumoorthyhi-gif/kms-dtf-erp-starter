@@ -15,6 +15,7 @@ PERMISSIONS = {
     "artwork.view": "View artwork and previews",
     "artwork.manage": "Upload and version artwork",
     "artwork.approve": "Record artwork approval decisions",
+    "ai.use": "Submit and manage AI image jobs",
 }
 
 ROLE_PERMISSIONS = {
@@ -32,6 +33,7 @@ ROLE_PERMISSIONS = {
             "artwork.view",
             "artwork.manage",
             "artwork.approve",
+            "ai.use",
         }
     ),
     "Designer": frozenset(
@@ -42,6 +44,7 @@ ROLE_PERMISSIONS = {
             "orders.view",
             "artwork.view",
             "artwork.manage",
+            "ai.use",
         }
     ),
     "Production Operator": frozenset({"dashboard.view", "orders.view"}),
