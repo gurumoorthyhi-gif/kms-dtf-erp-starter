@@ -18,6 +18,12 @@ from app.modules.artwork import (
     ArtworkStorage,
     PreviewService,
 )
+from app.modules.artwork_studio import (
+    ArtworkStudioService,
+    ImageInspector,
+    ImageTransformer,
+    ThumbnailCache,
+)
 from app.modules.authentication import (
     ActivityRepository,
     AuthenticationService,
@@ -79,6 +85,12 @@ def main() -> int:
         ArtworkStorage(paths.artwork_directory, PreviewService()),
         authentication_service,
     )
+    artwork_studio_service = ArtworkStudioService(
+        artwork_service,
+        ImageTransformer(),
+        ImageInspector(),
+        ThumbnailCache(paths.local_storage_directory / "thumbnail_cache"),
+    )
 
     app = QApplication(sys.argv)
     window = MainWindow(
@@ -88,6 +100,7 @@ def main() -> int:
         product_service=product_service,
         order_service=order_service,
         artwork_service=artwork_service,
+        artwork_studio_service=artwork_studio_service,
     )
     window.show()
     try:

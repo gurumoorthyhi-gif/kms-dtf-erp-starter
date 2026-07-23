@@ -39,3 +39,7 @@ Phase 9 adds `artworks`, `artwork_versions`, and `artwork_approvals`. Database
 records contain managed relative paths; originals and optimized previews remain
 in application-managed storage. Artwork can be linked to customers and orders,
 and every uploaded version retains its own metadata and approval history.
+
+Phase 10 adds no database tables. Artwork Studio edits use the existing artwork
+version records, preserving the original while each saved edit becomes a new
+managed version.
