@@ -29,3 +29,5 @@
   queues, interrupted-transfer retry, synchronization, and progress UI.
 - Added Phase 18 provider-neutral WhatsApp and email inboxes, templates, replies,
   forwards, attachments, customer/order links, and conversation history.
+- Added Phase 19 reports with CSV/PDF export, consistent verified backups, restore,
+  backup history, and append-only audit records.
