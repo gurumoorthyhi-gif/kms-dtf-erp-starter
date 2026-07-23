@@ -6,3 +6,4 @@
 - Added configuration, dependency, Git, and documentation foundations.
 - Fixed Windows CI test discovery by invoking pytest through Python.
 - Added typed environment settings, runtime directory initialization, and rotating logs.
+- Added the SQLAlchemy session, health-check, and Alembic migration foundations.
