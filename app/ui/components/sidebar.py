@@ -62,6 +62,7 @@ class Sidebar(QFrame):
             "payments": "Payments",
             "packing": "Packing",
             "dispatch": "Dispatch",
+            "cloud_storage": "Cloud Storage",
             "settings": "Settings",
         }
         self._build_ui()

@@ -25,3 +25,5 @@
   notes, outstanding balances, and customer/supplier ledgers.
 - Added Phase 16 packing lists, package measurements, controlled dispatch, shipping
   labels, proof files, delivery histories, and customer notification events.
+- Added Phase 17 provider-neutral cloud storage, local caching, durable offline
+  queues, interrupted-transfer retry, synchronization, and progress UI.

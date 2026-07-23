@@ -33,6 +33,8 @@ PERMISSIONS = {
     "dispatch.view": "View dispatch and delivery status",
     "dispatch.manage": "Create dispatches and update delivery status",
     "dispatch.override": "Dispatch an order before packing is complete",
+    "cloud_storage.view": "View cloud files and transfer state",
+    "cloud_storage.manage": "Upload, download, and synchronize cloud files",
 }
 
 ROLE_PERMISSIONS = {
@@ -68,6 +70,8 @@ ROLE_PERMISSIONS = {
             "dispatch.view",
             "dispatch.manage",
             "dispatch.override",
+            "cloud_storage.view",
+            "cloud_storage.manage",
         }
     ),
     "Designer": frozenset(

@@ -13,6 +13,7 @@ from app.modules.ai_engine import AIJobManager
 from app.modules.artwork import ArtworkService
 from app.modules.artwork_studio import ArtworkStudioService
 from app.modules.authentication import AuthenticatedUser, AuthenticationService
+from app.modules.cloud_storage import CloudStorageService
 from app.modules.customers import CustomerService
 from app.modules.dashboard import DashboardService
 from app.modules.gang_sheets import GangSheetService
@@ -28,6 +29,7 @@ from app.ui.pages import (
     AIToolsPage,
     ArtworkLibraryPage,
     ArtworkStudioPage,
+    CloudStoragePage,
     CustomersPage,
     DashboardPage,
     DispatchPage,
@@ -69,6 +71,7 @@ class MainWindow(QMainWindow):
         "payments": ("Payments", "Advances, receipts, credits, and balances"),
         "packing": ("Packing", "Packing lists, package counts, and weights"),
         "dispatch": ("Dispatch", "Couriers, tracking, labels, and delivery"),
+        "cloud_storage": ("Cloud Storage", "Offline queue, transfers, and synchronization"),
         "settings": ("Settings", "Application preferences"),
     }
 
@@ -89,6 +92,7 @@ class MainWindow(QMainWindow):
         sales_service: SalesService | None = None,
         packing_service: PackingService | None = None,
         dispatch_service: DispatchService | None = None,
+        cloud_storage_service: CloudStorageService | None = None,
     ) -> None:
         super().__init__()
         self._authentication_service = authentication_service
@@ -230,6 +234,11 @@ class MainWindow(QMainWindow):
             self.dispatch_page = DispatchPage(dispatch_service, packing_service, auto_refresh=False)
             self.router.register_page("dispatch", self.dispatch_page)
         self.sidebar.set_page_visible("dispatch", self.dispatch_page is not None)
+        self.cloud_storage_page: CloudStoragePage | None = None
+        if cloud_storage_service is not None:
+            self.cloud_storage_page = CloudStoragePage(cloud_storage_service, auto_refresh=False)
+            self.router.register_page("cloud_storage", self.cloud_storage_page)
+        self.sidebar.set_page_visible("cloud_storage", self.cloud_storage_page is not None)
         self.login_page: LoginPage | None = None
         if authentication_service is not None:
             self.login_page = LoginPage(authentication_service)
@@ -350,6 +359,11 @@ class MainWindow(QMainWindow):
             self.sidebar.set_page_visible("dispatch", can_view_dispatch)
             if can_view_dispatch:
                 self.dispatch_page.refresh()
+        if self.cloud_storage_page is not None:
+            can_view_cloud = "cloud_storage.view" in user.permissions
+            self.sidebar.set_page_visible("cloud_storage", can_view_cloud)
+            if can_view_cloud:
+                self.cloud_storage_page.refresh()
         self.navigate("dashboard")
 
     def logout(self) -> None:
