@@ -20,6 +20,10 @@ PERMISSIONS = {
     "gang_sheets.manage": "Create, edit, and export gang sheets",
     "production.view": "View production queue and history",
     "production.manage": "Manage production workflow and quality",
+    "inventory.view": "View inventory and low-stock warnings",
+    "inventory.manage": "Receive, issue, and adjust stock",
+    "purchases.view": "View suppliers and purchases",
+    "purchases.manage": "Manage suppliers, purchases, and receipts",
 }
 
 ROLE_PERMISSIONS = {
@@ -42,6 +46,10 @@ ROLE_PERMISSIONS = {
             "gang_sheets.manage",
             "production.view",
             "production.manage",
+            "inventory.view",
+            "inventory.manage",
+            "purchases.view",
+            "purchases.manage",
         }
     ),
     "Designer": frozenset(

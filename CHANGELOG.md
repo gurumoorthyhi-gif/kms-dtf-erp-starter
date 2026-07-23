@@ -19,3 +19,5 @@
 - Added Phase 11 separate AI image engine jobs with progress, cancellation, and retry.
 - Added Phase 12 gang sheet layouts, nesting tools, metre usage, and 300 DPI export.
 - Added Phase 13 production queues, validated stages, quality, wastage, and history.
+- Added Phase 14 inventory, stock movements, low-stock warnings, suppliers, purchases,
+  and transactional purchase receipts.

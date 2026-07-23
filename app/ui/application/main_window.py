@@ -16,6 +16,7 @@ from app.modules.authentication import AuthenticatedUser, AuthenticationService
 from app.modules.customers import CustomerService
 from app.modules.dashboard import DashboardService
 from app.modules.gang_sheets import GangSheetService
+from app.modules.inventory import InventoryService, PurchaseService
 from app.modules.orders import OrderService
 from app.modules.production import ProductionService
 from app.modules.products import ProductService
@@ -28,11 +29,14 @@ from app.ui.pages import (
     CustomersPage,
     DashboardPage,
     GangSheetPage,
+    InventoryPage,
     LoginPage,
     OrdersPage,
     ProductionPage,
     ProductsPage,
+    PurchasesPage,
     SettingsPage,
+    SuppliersPage,
 )
 from app.ui.themes import APP_STYLESHEET
 
@@ -50,6 +54,9 @@ class MainWindow(QMainWindow):
         "ai_tools": ("AI Tools", "Separate AI image engine jobs"),
         "gang_sheets": ("Gang Sheets", "Artwork nesting and original-quality export"),
         "production": ("Production", "Production queue, stages, and quality"),
+        "inventory": ("Inventory", "Stock levels, movements, and reorder warnings"),
+        "suppliers": ("Suppliers", "Supplier directory and purchasing contacts"),
+        "purchases": ("Purchases", "Purchase orders and stock receipts"),
         "settings": ("Settings", "Application preferences"),
     }
 
@@ -65,6 +72,8 @@ class MainWindow(QMainWindow):
         ai_job_manager: AIJobManager | None = None,
         gang_sheet_service: GangSheetService | None = None,
         production_service: ProductionService | None = None,
+        inventory_service: InventoryService | None = None,
+        purchase_service: PurchaseService | None = None,
     ) -> None:
         super().__init__()
         self._authentication_service = authentication_service
@@ -163,6 +172,25 @@ class MainWindow(QMainWindow):
             )
             self.router.register_page("production", self.production_page)
         self.sidebar.set_page_visible("production", self.production_page is not None)
+        self.inventory_page: InventoryPage | None = None
+        if inventory_service is not None:
+            self.inventory_page = InventoryPage(inventory_service, auto_refresh=False)
+            self.router.register_page("inventory", self.inventory_page)
+        self.sidebar.set_page_visible("inventory", self.inventory_page is not None)
+        self.suppliers_page: SuppliersPage | None = None
+        if purchase_service is not None:
+            self.suppliers_page = SuppliersPage(purchase_service, auto_refresh=False)
+            self.router.register_page("suppliers", self.suppliers_page)
+        self.sidebar.set_page_visible("suppliers", self.suppliers_page is not None)
+        self.purchases_page: PurchasesPage | None = None
+        if purchase_service is not None and inventory_service is not None:
+            self.purchases_page = PurchasesPage(
+                purchase_service,
+                inventory_service,
+                auto_refresh=False,
+            )
+            self.router.register_page("purchases", self.purchases_page)
+        self.sidebar.set_page_visible("purchases", self.purchases_page is not None)
         self.login_page: LoginPage | None = None
         if authentication_service is not None:
             self.login_page = LoginPage(authentication_service)
@@ -245,6 +273,20 @@ class MainWindow(QMainWindow):
             self.sidebar.set_page_visible("production", can_view_production)
             if can_view_production:
                 self.production_page.refresh()
+        if self.inventory_page is not None:
+            can_view_inventory = "inventory.view" in user.permissions
+            self.sidebar.set_page_visible("inventory", can_view_inventory)
+            if can_view_inventory:
+                self.inventory_page.refresh()
+        can_view_purchases = "purchases.view" in user.permissions
+        if self.suppliers_page is not None:
+            self.sidebar.set_page_visible("suppliers", can_view_purchases)
+            if can_view_purchases:
+                self.suppliers_page.refresh()
+        if self.purchases_page is not None:
+            self.sidebar.set_page_visible("purchases", can_view_purchases)
+            if can_view_purchases:
+                self.purchases_page.refresh()
         self.navigate("dashboard")
 
     def logout(self) -> None:

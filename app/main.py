@@ -40,6 +40,12 @@ from app.modules.authentication import (
 from app.modules.customers import CustomerRepository, CustomerService
 from app.modules.dashboard import DashboardRepository, DashboardService
 from app.modules.gang_sheets import GangSheetRepository, GangSheetService
+from app.modules.inventory import (
+    InventoryRepository,
+    InventoryService,
+    PurchaseRepository,
+    PurchaseService,
+)
 from app.modules.orders import OrderRepository, OrderService
 from app.modules.production import ProductionRepository, ProductionService
 from app.modules.products import ProductRepository, ProductService
@@ -113,6 +119,14 @@ def main() -> int:
         ProductionRepository(session_factory),
         authentication_service,
     )
+    inventory_service = InventoryService(
+        InventoryRepository(session_factory),
+        authentication_service,
+    )
+    purchase_service = PurchaseService(
+        PurchaseRepository(session_factory),
+        authentication_service,
+    )
 
     app = QApplication(sys.argv)
     window = MainWindow(
@@ -126,6 +140,8 @@ def main() -> int:
         ai_job_manager=ai_job_manager,
         gang_sheet_service=gang_sheet_service,
         production_service=production_service,
+        inventory_service=inventory_service,
+        purchase_service=purchase_service,
     )
     window.show()
     try:

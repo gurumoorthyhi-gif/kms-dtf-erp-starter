@@ -5,6 +5,12 @@ from app.ui.pages.artwork import ArtworkDetailsDialog, ArtworkLibraryPage, Artwo
 from app.ui.pages.artwork_studio import ArtworkStudioPage, BeforeAfterView, ImageCanvas
 from app.ui.pages.dashboard import DashboardPage
 from app.ui.pages.gang_sheets import GangSheetCanvas, GangSheetPage, LayoutHistory
+from app.ui.pages.inventory import (
+    InventoryItemDialog,
+    InventoryPage,
+    PurchasesPage,
+    SuppliersPage,
+)
 from app.ui.pages.login import LoginPage
 from app.ui.pages.orders import OrderCreationDialog, OrderDetailsDialog, OrdersPage
 from app.ui.pages.production import ProductionHistoryDialog, ProductionPage
@@ -26,6 +32,8 @@ __all__ = [
     "ArtworkStudioPage",
     "BeforeAfterView",
     "ImageCanvas",
+    "InventoryItemDialog",
+    "InventoryPage",
     "LoginPage",
     "OrderCreationDialog",
     "OrderDetailsDialog",
@@ -34,6 +42,8 @@ __all__ = [
     "ProductsPage",
     "ProductionHistoryDialog",
     "ProductionPage",
+    "PurchasesPage",
     "SettingsPage",
+    "SuppliersPage",
 ]
 from app.ui.pages.customers import CustomerDetailsDialog, CustomerFormDialog, CustomersPage

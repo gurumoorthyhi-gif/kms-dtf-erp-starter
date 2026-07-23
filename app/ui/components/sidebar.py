@@ -54,6 +54,9 @@ class Sidebar(QFrame):
             "ai_tools": "AI Tools",
             "gang_sheets": "Gang Sheets",
             "production": "Production",
+            "inventory": "Inventory",
+            "suppliers": "Suppliers",
+            "purchases": "Purchases",
             "settings": "Settings",
         }
         self._build_ui()
