@@ -8,3 +8,7 @@ The application follows a modular layered architecture:
 4. Database layer
 
 The UI must not query SQLite directly.
+
+Database access uses a shared SQLAlchemy declarative base, engine factory, and
+transaction-scoped session factory. Engine creation applies SQLite-specific
+thread handling only for SQLite URLs, keeping other SQLAlchemy backends available.
