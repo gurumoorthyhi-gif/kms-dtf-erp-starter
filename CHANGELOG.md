@@ -4,3 +4,4 @@
 
 - Initialized project structure.
 - Added configuration, dependency, Git, and documentation foundations.
+- Fixed Windows CI test discovery by invoking pytest through Python.
