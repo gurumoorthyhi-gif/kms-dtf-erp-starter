@@ -19,6 +19,9 @@ def test_database_health_and_metadata(tmp_path: Path) -> None:
     assert check_database_health(engine) is True
     assert set(Base.metadata.tables) == {
         "activity_logs",
+        "artwork_approvals",
+        "artwork_versions",
+        "artworks",
         "customer_addresses",
         "customer_file_references",
         "customers",

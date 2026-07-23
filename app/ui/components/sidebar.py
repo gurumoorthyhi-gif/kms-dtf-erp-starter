@@ -49,6 +49,7 @@ class Sidebar(QFrame):
             "customers": "Customers",
             "products": "Products",
             "orders": "Orders",
+            "artwork": "Artwork",
             "settings": "Settings",
         }
         self._build_ui()

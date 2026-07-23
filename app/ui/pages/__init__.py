@@ -1,5 +1,6 @@
 """Application pages."""
 
+from app.ui.pages.artwork import ArtworkDetailsDialog, ArtworkLibraryPage, ArtworkUploadDialog
 from app.ui.pages.dashboard import DashboardPage
 from app.ui.pages.login import LoginPage
 from app.ui.pages.orders import OrderCreationDialog, OrderDetailsDialog, OrdersPage
@@ -11,6 +12,9 @@ __all__ = [
     "CustomerFormDialog",
     "CustomersPage",
     "DashboardPage",
+    "ArtworkDetailsDialog",
+    "ArtworkLibraryPage",
+    "ArtworkUploadDialog",
     "LoginPage",
     "OrderCreationDialog",
     "OrderDetailsDialog",
