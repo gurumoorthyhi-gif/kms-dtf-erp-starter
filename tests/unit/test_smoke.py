@@ -1,4 +1,12 @@
-def test_project_imports() -> None:
-    from app.main import MainWindow
+from app.main import MainWindow
 
-    assert MainWindow is not None
+
+def test_main_window_opens(qtbot) -> None:
+    window = MainWindow()
+    qtbot.addWidget(window)
+
+    window.show()
+
+    assert window.isVisible()
+    assert window.windowTitle() == "KMS DTF ERP"
+    assert window.centralWidget() is not None

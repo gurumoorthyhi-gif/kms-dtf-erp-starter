@@ -8,6 +8,7 @@ from app.database import (
     check_database_health,
     create_database_engine,
     create_session_factory,
+    resolve_database_url,
     session_scope,
 )
 
@@ -49,3 +50,12 @@ def test_database_health_reports_unavailable_sqlite_path(tmp_path: Path) -> None
     assert check_database_health(engine) is False
 
     engine.dispose()
+
+
+def test_relative_sqlite_url_resolves_against_application_path(tmp_path: Path) -> None:
+    url = resolve_database_url(
+        "sqlite:///data/application.db",
+        base_directory=tmp_path,
+    )
+
+    assert Path(url.database or "") == (tmp_path / "data" / "application.db").resolve()

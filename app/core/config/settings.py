@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from dotenv import dotenv_values
 from pydantic import BaseModel, ConfigDict
+
+if TYPE_CHECKING:
+    from app.core.config.paths import ApplicationPaths
 
 
 class Settings(BaseModel):
@@ -69,8 +72,15 @@ class Settings(BaseModel):
         )
 
 
-def initialize_directories(settings: Settings) -> None:
-    """Create all configured runtime directories."""
+def initialize_directories(
+    settings: Settings,
+    *,
+    base_directory: Path | None = None,
+) -> ApplicationPaths:
+    """Resolve and create all configured runtime directories."""
 
-    for directory in settings.runtime_directories:
-        directory.mkdir(parents=True, exist_ok=True)
+    from app.core.config.paths import ApplicationPaths
+
+    paths = ApplicationPaths.from_settings(settings, base_directory=base_directory)
+    paths.create_runtime_directories()
+    return paths
