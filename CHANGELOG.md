@@ -27,3 +27,5 @@
   labels, proof files, delivery histories, and customer notification events.
 - Added Phase 17 provider-neutral cloud storage, local caching, durable offline
   queues, interrupted-transfer retry, synchronization, and progress UI.
+- Added Phase 18 provider-neutral WhatsApp and email inboxes, templates, replies,
+  forwards, attachments, customer/order links, and conversation history.

@@ -63,6 +63,8 @@ class Sidebar(QFrame):
             "packing": "Packing",
             "dispatch": "Dispatch",
             "cloud_storage": "Cloud Storage",
+            "whatsapp": "WhatsApp",
+            "email": "Email",
             "settings": "Settings",
         }
         self._build_ui()

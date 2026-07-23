@@ -4,6 +4,7 @@ from app.ui.pages.ai_tools import AIToolsPage
 from app.ui.pages.artwork import ArtworkDetailsDialog, ArtworkLibraryPage, ArtworkUploadDialog
 from app.ui.pages.artwork_studio import ArtworkStudioPage, BeforeAfterView, ImageCanvas
 from app.ui.pages.cloud_storage import CloudStoragePage
+from app.ui.pages.communications import EmailInboxPage, WhatsAppInboxPage
 from app.ui.pages.dashboard import DashboardPage
 from app.ui.pages.gang_sheets import GangSheetCanvas, GangSheetPage, LayoutHistory
 from app.ui.pages.inventory import (
@@ -26,6 +27,8 @@ __all__ = [
     "CustomersPage",
     "DashboardPage",
     "CloudStoragePage",
+    "EmailInboxPage",
+    "WhatsAppInboxPage",
     "GangSheetCanvas",
     "GangSheetPage",
     "LayoutHistory",

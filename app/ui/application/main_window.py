@@ -14,6 +14,7 @@ from app.modules.artwork import ArtworkService
 from app.modules.artwork_studio import ArtworkStudioService
 from app.modules.authentication import AuthenticatedUser, AuthenticationService
 from app.modules.cloud_storage import CloudStorageService
+from app.modules.communications import CommunicationService
 from app.modules.customers import CustomerService
 from app.modules.dashboard import DashboardService
 from app.modules.gang_sheets import GangSheetService
@@ -33,6 +34,7 @@ from app.ui.pages import (
     CustomersPage,
     DashboardPage,
     DispatchPage,
+    EmailInboxPage,
     GangSheetPage,
     InventoryPage,
     InvoicesPage,
@@ -46,6 +48,7 @@ from app.ui.pages import (
     SalesPage,
     SettingsPage,
     SuppliersPage,
+    WhatsAppInboxPage,
 )
 from app.ui.themes import APP_STYLESHEET
 
@@ -72,6 +75,8 @@ class MainWindow(QMainWindow):
         "packing": ("Packing", "Packing lists, package counts, and weights"),
         "dispatch": ("Dispatch", "Couriers, tracking, labels, and delivery"),
         "cloud_storage": ("Cloud Storage", "Offline queue, transfers, and synchronization"),
+        "whatsapp": ("WhatsApp", "Shared customer conversation inbox"),
+        "email": ("Email", "Customer email inbox and history"),
         "settings": ("Settings", "Application preferences"),
     }
 
@@ -93,6 +98,8 @@ class MainWindow(QMainWindow):
         packing_service: PackingService | None = None,
         dispatch_service: DispatchService | None = None,
         cloud_storage_service: CloudStorageService | None = None,
+        whatsapp_service: CommunicationService | None = None,
+        email_service: CommunicationService | None = None,
     ) -> None:
         super().__init__()
         self._authentication_service = authentication_service
@@ -239,6 +246,16 @@ class MainWindow(QMainWindow):
             self.cloud_storage_page = CloudStoragePage(cloud_storage_service, auto_refresh=False)
             self.router.register_page("cloud_storage", self.cloud_storage_page)
         self.sidebar.set_page_visible("cloud_storage", self.cloud_storage_page is not None)
+        self.whatsapp_page: WhatsAppInboxPage | None = None
+        if whatsapp_service is not None:
+            self.whatsapp_page = WhatsAppInboxPage(whatsapp_service, auto_refresh=False)
+            self.router.register_page("whatsapp", self.whatsapp_page)
+        self.sidebar.set_page_visible("whatsapp", self.whatsapp_page is not None)
+        self.email_page: EmailInboxPage | None = None
+        if email_service is not None:
+            self.email_page = EmailInboxPage(email_service, auto_refresh=False)
+            self.router.register_page("email", self.email_page)
+        self.sidebar.set_page_visible("email", self.email_page is not None)
         self.login_page: LoginPage | None = None
         if authentication_service is not None:
             self.login_page = LoginPage(authentication_service)
@@ -364,6 +381,15 @@ class MainWindow(QMainWindow):
             self.sidebar.set_page_visible("cloud_storage", can_view_cloud)
             if can_view_cloud:
                 self.cloud_storage_page.refresh()
+        can_view_communications = "communications.view" in user.permissions
+        if self.whatsapp_page is not None:
+            self.sidebar.set_page_visible("whatsapp", can_view_communications)
+            if can_view_communications:
+                self.whatsapp_page.refresh()
+        if self.email_page is not None:
+            self.sidebar.set_page_visible("email", can_view_communications)
+            if can_view_communications:
+                self.email_page.refresh()
         self.navigate("dashboard")
 
     def logout(self) -> None:
