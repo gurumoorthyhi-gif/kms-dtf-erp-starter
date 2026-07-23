@@ -9,6 +9,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.modules.ai_engine import AIJobManager
 from app.modules.artwork import ArtworkService
 from app.modules.artwork_studio import ArtworkStudioService
 from app.modules.authentication import AuthenticatedUser, AuthenticationService
@@ -19,6 +20,7 @@ from app.modules.products import ProductService
 from app.ui.application.router import PageRouter
 from app.ui.components import Sidebar, TopBar
 from app.ui.pages import (
+    AIToolsPage,
     ArtworkLibraryPage,
     ArtworkStudioPage,
     CustomersPage,
@@ -41,6 +43,7 @@ class MainWindow(QMainWindow):
         "orders": ("Orders", "Order workflow and production status"),
         "artwork": ("Artwork", "Artwork library, versions, and approvals"),
         "studio": ("Artwork Studio", "Local non-destructive image tools"),
+        "ai_tools": ("AI Tools", "Separate AI image engine jobs"),
         "settings": ("Settings", "Application preferences"),
     }
 
@@ -53,6 +56,7 @@ class MainWindow(QMainWindow):
         order_service: OrderService | None = None,
         artwork_service: ArtworkService | None = None,
         artwork_studio_service: ArtworkStudioService | None = None,
+        ai_job_manager: AIJobManager | None = None,
     ) -> None:
         super().__init__()
         self._authentication_service = authentication_service
@@ -124,6 +128,15 @@ class MainWindow(QMainWindow):
             )
             self.router.register_page("studio", self.studio_page)
         self.sidebar.set_page_visible("studio", self.studio_page is not None)
+        self.ai_tools_page: AIToolsPage | None = None
+        if artwork_service is not None and ai_job_manager is not None:
+            self.ai_tools_page = AIToolsPage(
+                ai_job_manager,
+                artwork_service,
+                auto_refresh=False,
+            )
+            self.router.register_page("ai_tools", self.ai_tools_page)
+        self.sidebar.set_page_visible("ai_tools", self.ai_tools_page is not None)
         self.login_page: LoginPage | None = None
         if authentication_service is not None:
             self.login_page = LoginPage(authentication_service)
@@ -191,6 +204,11 @@ class MainWindow(QMainWindow):
             self.sidebar.set_page_visible("studio", can_use_studio)
             if can_use_studio:
                 self.studio_page.refresh()
+        if self.ai_tools_page is not None:
+            can_use_ai = "ai.use" in user.permissions
+            self.sidebar.set_page_visible("ai_tools", can_use_ai)
+            if can_use_ai:
+                self.ai_tools_page.refresh()
         self.navigate("dashboard")
 
     def logout(self) -> None:

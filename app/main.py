@@ -12,6 +12,11 @@ from app.database import (
     create_session_factory,
     upgrade_database,
 )
+from app.modules.ai_engine import (
+    AIEngineClient,
+    AIJobManager,
+    AIResultHandler,
+)
 from app.modules.artwork import (
     ArtworkRepository,
     ArtworkService,
@@ -91,6 +96,11 @@ def main() -> int:
         ImageInspector(),
         ThumbnailCache(paths.local_storage_directory / "thumbnail_cache"),
     )
+    ai_job_manager = AIJobManager(
+        AIEngineClient(settings.ai_engine_url, settings.ai_engine_api_key),
+        AIResultHandler(artwork_service),
+        paths.local_storage_directory / "ai_results",
+    )
 
     app = QApplication(sys.argv)
     window = MainWindow(
@@ -101,9 +111,11 @@ def main() -> int:
         order_service=order_service,
         artwork_service=artwork_service,
         artwork_studio_service=artwork_studio_service,
+        ai_job_manager=ai_job_manager,
     )
     window.show()
     try:
         return app.exec()
     finally:
+        ai_job_manager.close()
         engine.dispose()

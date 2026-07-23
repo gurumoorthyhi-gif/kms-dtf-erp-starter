@@ -1,5 +1,6 @@
 """Application pages."""
 
+from app.ui.pages.ai_tools import AIToolsPage
 from app.ui.pages.artwork import ArtworkDetailsDialog, ArtworkLibraryPage, ArtworkUploadDialog
 from app.ui.pages.artwork_studio import ArtworkStudioPage, BeforeAfterView, ImageCanvas
 from app.ui.pages.dashboard import DashboardPage
@@ -14,6 +15,7 @@ __all__ = [
     "CustomersPage",
     "DashboardPage",
     "ArtworkDetailsDialog",
+    "AIToolsPage",
     "ArtworkLibraryPage",
     "ArtworkUploadDialog",
     "ArtworkStudioPage",
