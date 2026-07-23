@@ -9,3 +9,13 @@
 - Cyan: #42D3FF
 - Pink: #F45CB4
 - Background: #EEF3FF
+
+## Phase 3 shell
+
+- Qt Widgets only
+- Light glass-effect workspace with translucent white surfaces
+- Purple-blue-cyan code-painted icons
+- Rounded 20 px cards with soft shadows
+- Sidebar tooltips in the collapsed state
+- Active navigation uses a subtle gradient highlight
+- Dashboard and Settings remain presentation-only placeholders

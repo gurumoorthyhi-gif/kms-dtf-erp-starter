@@ -9,6 +9,7 @@ from sqlalchemy import engine_from_config, pool
 
 from app.core.config import Settings
 from app.database.base import Base
+from app.database.session import resolve_database_url
 
 config = context.config
 
@@ -16,7 +17,11 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 settings = Settings.load()
-config.set_main_option("sqlalchemy.url", settings.database_url.replace("%", "%%"))
+database_url = resolve_database_url(settings.database_url)
+config.set_main_option(
+    "sqlalchemy.url",
+    database_url.render_as_string(hide_password=False).replace("%", "%%"),
+)
 target_metadata = Base.metadata
 
 

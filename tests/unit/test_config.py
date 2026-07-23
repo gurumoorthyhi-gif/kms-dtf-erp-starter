@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from app.core.config import Settings, initialize_directories
+from app.core.config import ApplicationPaths, Settings, initialize_directories
 
 
 def test_settings_load_dotenv_with_environment_override(tmp_path: Path, monkeypatch) -> None:
@@ -27,6 +27,23 @@ def test_initialize_directories_creates_runtime_tree(tmp_path: Path) -> None:
         backup_directory=tmp_path / "backups",
     )
 
-    initialize_directories(settings)
+    paths = initialize_directories(settings, base_directory=tmp_path)
 
     assert all(path.is_dir() for path in settings.runtime_directories)
+    assert all(path.is_absolute() for path in paths.runtime_directories)
+
+
+def test_application_paths_resolve_relative_configuration(tmp_path: Path) -> None:
+    settings = Settings(
+        log_directory=Path("runtime/logs"),
+        local_storage_directory=Path("runtime/data"),
+        artwork_directory=Path("runtime/data/artwork"),
+        export_directory=Path("runtime/exports"),
+        backup_directory=Path("runtime/backups"),
+    )
+
+    paths = ApplicationPaths.from_settings(settings, base_directory=tmp_path)
+
+    assert paths.base_directory == tmp_path.resolve()
+    assert paths.log_directory == (tmp_path / "runtime" / "logs").resolve()
+    assert paths.artwork_directory == (tmp_path / "runtime" / "data" / "artwork").resolve()

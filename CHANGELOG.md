@@ -7,3 +7,5 @@
 - Fixed Windows CI test discovery by invoking pytest through Python.
 - Added typed environment settings, runtime directory initialization, and rotating logs.
 - Added the SQLAlchemy session, health-check, and Alembic migration foundations.
+- Completed Phase 2 with centralized path resolution and global exception handling.
+- Added the Phase 3 Qt Widgets shell with animated navigation and placeholder pages.

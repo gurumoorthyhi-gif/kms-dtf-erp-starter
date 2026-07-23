@@ -7,13 +7,18 @@ from pathlib import Path
 
 from loguru import logger
 
-from app.core.config import Settings
+from app.core.config import ApplicationPaths, Settings
 
 
-def configure_logging(settings: Settings) -> Path:
+def configure_logging(
+    settings: Settings,
+    paths: ApplicationPaths | None = None,
+) -> Path:
     """Configure console and rotating file logs, returning the active log path."""
 
-    log_path = settings.log_directory / "kms-dtf-erp.log"
+    log_directory = paths.log_directory if paths is not None else settings.log_directory
+    log_directory.mkdir(parents=True, exist_ok=True)
+    log_path = log_directory / "kms-dtf-erp.log"
     logger.remove()
     logger.add(
         sys.stderr,
