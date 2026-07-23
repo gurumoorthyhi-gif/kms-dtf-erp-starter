@@ -14,6 +14,10 @@ Customer → Order → Artwork → Approval → Gang Sheet → Production → Qu
 - Alembic migrations
 - Pillow and OpenCV
 
+## Version
+
+Current production release: **1.0.0**
+
 ## First run
 
 ```powershell
@@ -24,6 +28,17 @@ pip install -r requirements-dev.txt
 Copy-Item .env.example .env
 python run.py
 ```
+
+Run validation with `python -m pytest`. Windows release builds use
+`scripts\build_windows.ps1`; see [DEPLOYMENT.md](DEPLOYMENT.md) for prerequisites,
+upgrade and recovery procedures. Runtime databases, customer files and `.env`
+credentials are never included in the installer.
+
+## Documentation
+
+- [User manual](USER_MANUAL.md)
+- [Deployment and upgrade](DEPLOYMENT.md)
+- [Release checklist](RELEASE_CHECKLIST.md)
 
 ## First administrator
 
