@@ -37,6 +37,7 @@ from app.modules.authentication import (
     RoleRepository,
     UserRepository,
 )
+from app.modules.cloud_storage import CloudStorageService, LocalStorageProvider
 from app.modules.customers import CustomerRepository, CustomerService
 from app.modules.dashboard import DashboardRepository, DashboardService
 from app.modules.gang_sheets import GangSheetRepository, GangSheetService
@@ -133,6 +134,11 @@ def main() -> int:
         SalesRepository(session_factory),
         authentication_service,
     )
+    cloud_service = CloudStorageService(
+        session_factory,
+        LocalStorageProvider(paths.local_storage_directory / "cloud_provider"),
+        paths.local_storage_directory / "cloud_cache",
+    )
     shipping_repository = ShippingRepository(session_factory)
     packing_service = PackingService(shipping_repository, authentication_service)
     dispatch_service = DispatchService(shipping_repository, authentication_service)
@@ -154,6 +160,7 @@ def main() -> int:
         sales_service=sales_service,
         packing_service=packing_service,
         dispatch_service=dispatch_service,
+        cloud_storage_service=cloud_service,
     )
     window.show()
     try:
