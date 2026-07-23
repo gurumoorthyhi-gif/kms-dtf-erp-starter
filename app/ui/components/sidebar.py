@@ -47,6 +47,7 @@ class Sidebar(QFrame):
         self._labels = {
             "dashboard": "Dashboard",
             "customers": "Customers",
+            "products": "Products",
             "settings": "Settings",
         }
         self._build_ui()

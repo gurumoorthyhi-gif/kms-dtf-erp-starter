@@ -8,15 +8,26 @@ PERMISSIONS = {
     "reports.view": "View business reports",
     "customers.view": "View customer records",
     "customers.manage": "Create and manage customer records",
+    "products.view": "View products and pricing",
+    "products.manage": "Manage products and pricing rules",
 }
 
 ROLE_PERMISSIONS = {
     "Administrator": frozenset(PERMISSIONS),
-    "Manager": frozenset({"dashboard.view", "reports.view", "customers.view", "customers.manage"}),
-    "Designer": frozenset({"dashboard.view", "customers.view"}),
+    "Manager": frozenset(
+        {
+            "dashboard.view",
+            "reports.view",
+            "customers.view",
+            "customers.manage",
+            "products.view",
+            "products.manage",
+        }
+    ),
+    "Designer": frozenset({"dashboard.view", "customers.view", "products.view"}),
     "Production Operator": frozenset({"dashboard.view"}),
     "Accountant": frozenset({"dashboard.view", "reports.view", "customers.view"}),
     "Packing Staff": frozenset({"dashboard.view"}),
     "Dispatch Staff": frozenset({"dashboard.view"}),
-    "Viewer": frozenset({"dashboard.view", "customers.view"}),
+    "Viewer": frozenset({"dashboard.view", "customers.view", "products.view"}),
 }

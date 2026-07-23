@@ -20,3 +20,8 @@ Phase 6 adds `customers`, `customer_addresses`, and
 `customer_file_references`. Customer codes are unique, addresses are separated
 into billing and shipping records, and file references store managed relative
 paths rather than machine-specific absolute paths. Order tables remain out of scope.
+
+## Products and pricing
+
+Phase 7 adds product categories, products, quantity/metre price tiers, discount
+rules, and tax configuration. Monetary values use fixed-precision decimals.
