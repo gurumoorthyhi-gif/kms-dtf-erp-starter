@@ -38,6 +38,7 @@ from app.modules.authentication import (
     UserRepository,
 )
 from app.modules.cloud_storage import CloudStorageService, LocalStorageProvider
+from app.modules.communications import CommunicationService, UnconfiguredProvider
 from app.modules.customers import CustomerRepository, CustomerService
 from app.modules.dashboard import DashboardRepository, DashboardService
 from app.modules.gang_sheets import GangSheetRepository, GangSheetService
@@ -139,6 +140,20 @@ def main() -> int:
         LocalStorageProvider(paths.local_storage_directory / "cloud_provider"),
         paths.local_storage_directory / "cloud_cache",
     )
+    whatsapp_service = CommunicationService(
+        session_factory,
+        "whatsapp",
+        UnconfiguredProvider(),
+        paths.local_storage_directory / "communications" / "whatsapp",
+        authentication_service,
+    )
+    email_service = CommunicationService(
+        session_factory,
+        "email",
+        UnconfiguredProvider(),
+        paths.local_storage_directory / "communications" / "email",
+        authentication_service,
+    )
     shipping_repository = ShippingRepository(session_factory)
     packing_service = PackingService(shipping_repository, authentication_service)
     dispatch_service = DispatchService(shipping_repository, authentication_service)
@@ -161,6 +176,8 @@ def main() -> int:
         packing_service=packing_service,
         dispatch_service=dispatch_service,
         cloud_storage_service=cloud_service,
+        whatsapp_service=whatsapp_service,
+        email_service=email_service,
     )
     window.show()
     try:

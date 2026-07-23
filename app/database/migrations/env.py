@@ -13,6 +13,7 @@ from app.database.session import resolve_database_url
 from app.modules.artwork import models as artwork_models
 from app.modules.authentication import models as authentication_models
 from app.modules.cloud_storage import models as cloud_storage_models
+from app.modules.communications import models as communications_models
 from app.modules.customers import models as customer_models
 from app.modules.gang_sheets import models as gang_sheet_models
 from app.modules.inventory import models as inventory_models
@@ -27,6 +28,7 @@ _ = (
     authentication_models,
     customer_models,
     cloud_storage_models,
+    communications_models,
     gang_sheet_models,
     inventory_models,
     order_models,

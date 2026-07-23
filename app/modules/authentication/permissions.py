@@ -35,6 +35,10 @@ PERMISSIONS = {
     "dispatch.override": "Dispatch an order before packing is complete",
     "cloud_storage.view": "View cloud files and transfer state",
     "cloud_storage.manage": "Upload, download, and synchronize cloud files",
+    "communications.view": "View WhatsApp and email conversations",
+    "communications.send": "Send and reply to customer messages",
+    "communications.receive": "Synchronize communication inboxes",
+    "communications.manage": "Attach messages and manage templates",
 }
 
 ROLE_PERMISSIONS = {
@@ -72,6 +76,10 @@ ROLE_PERMISSIONS = {
             "dispatch.override",
             "cloud_storage.view",
             "cloud_storage.manage",
+            "communications.view",
+            "communications.send",
+            "communications.receive",
+            "communications.manage",
         }
     ),
     "Designer": frozenset(
