@@ -13,5 +13,4 @@ def test_customer_migration_creates_customer_tables(tmp_path: Path) -> None:
     tables = set(inspect(engine).get_table_names())
 
     assert {"customers", "customer_addresses", "customer_file_references"} <= tables
-    assert "orders" not in tables
     engine.dispose()

@@ -16,5 +16,4 @@ def test_product_migration(tmp_path: Path) -> None:
         "discount_rules",
         "tax_configurations",
     } <= set(inspect(engine).get_table_names())
-    assert "orders" not in inspect(engine).get_table_names()
     engine.dispose()

@@ -22,6 +22,7 @@ from app.modules.authentication import (
 )
 from app.modules.customers import CustomerRepository, CustomerService
 from app.modules.dashboard import DashboardRepository, DashboardService
+from app.modules.orders import OrderRepository, OrderService
 from app.modules.products import ProductRepository, ProductService
 from app.ui.application import MainWindow
 
@@ -62,6 +63,11 @@ def main() -> int:
         ProductRepository(session_factory),
         authentication_service,
     )
+    order_service = OrderService(
+        OrderRepository(session_factory),
+        product_service,
+        authentication_service,
+    )
 
     app = QApplication(sys.argv)
     window = MainWindow(
@@ -69,6 +75,7 @@ def main() -> int:
         dashboard_service,
         customer_service=customer_service,
         product_service=product_service,
+        order_service=order_service,
     )
     window.show()
     try:

@@ -69,6 +69,13 @@ class ProductService:
         self._require("products.view")
         return [self._summary(item) for item in self.repository.list_products(query)]
 
+    def get_product(self, product_id: int) -> ProductSummary:
+        self._require("products.view")
+        product = self.repository.get(product_id)
+        if product is None:
+            raise LookupError("Product not found")
+        return self._summary(product)
+
     def add_price_rule(self, product_id: int, minimum: Decimal, unit_price: Decimal) -> None:
         self._require("products.manage")
         if minimum <= 0 or unit_price < 0:

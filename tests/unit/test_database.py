@@ -23,6 +23,9 @@ def test_database_health_and_metadata(tmp_path: Path) -> None:
         "customer_file_references",
         "customers",
         "discount_rules",
+        "order_items",
+        "order_status_history",
+        "orders",
         "permissions",
         "price_rules",
         "product_categories",
@@ -33,8 +36,6 @@ def test_database_health_and_metadata(tmp_path: Path) -> None:
         "user_roles",
         "users",
     }
-    assert "orders" not in Base.metadata.tables
-
     engine.dispose()
 
 
