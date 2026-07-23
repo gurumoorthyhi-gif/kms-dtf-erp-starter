@@ -18,6 +18,8 @@ PERMISSIONS = {
     "ai.use": "Submit and manage AI image jobs",
     "gang_sheets.view": "View gang sheet layouts",
     "gang_sheets.manage": "Create, edit, and export gang sheets",
+    "production.view": "View production queue and history",
+    "production.manage": "Manage production workflow and quality",
 }
 
 ROLE_PERMISSIONS = {
@@ -38,6 +40,8 @@ ROLE_PERMISSIONS = {
             "ai.use",
             "gang_sheets.view",
             "gang_sheets.manage",
+            "production.view",
+            "production.manage",
         }
     ),
     "Designer": frozenset(
@@ -51,12 +55,26 @@ ROLE_PERMISSIONS = {
             "ai.use",
             "gang_sheets.view",
             "gang_sheets.manage",
+            "production.view",
+            "production.manage",
         }
     ),
-    "Production Operator": frozenset({"dashboard.view", "orders.view", "gang_sheets.view"}),
+    "Production Operator": frozenset(
+        {
+            "dashboard.view",
+            "orders.view",
+            "gang_sheets.view",
+            "production.view",
+            "production.manage",
+        }
+    ),
     "Accountant": frozenset({"dashboard.view", "reports.view", "customers.view"}),
-    "Packing Staff": frozenset({"dashboard.view", "orders.view"}),
-    "Dispatch Staff": frozenset({"dashboard.view", "orders.view"}),
+    "Packing Staff": frozenset(
+        {"dashboard.view", "orders.view", "production.view", "production.manage"}
+    ),
+    "Dispatch Staff": frozenset(
+        {"dashboard.view", "orders.view", "production.view", "production.manage"}
+    ),
     "Viewer": frozenset(
         {
             "dashboard.view",
