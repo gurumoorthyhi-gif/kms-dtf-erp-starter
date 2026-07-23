@@ -1,0 +1,9 @@
+PySide6>=6.8,<7
+SQLAlchemy>=2.0,<3
+alembic>=1.14,<2
+Pillow>=11,<12
+opencv-python>=4.10,<5
+python-dotenv>=1.0,<2
+pydantic>=2.10,<3
+loguru>=0.7,<1
+platformdirs>=4.3,<5

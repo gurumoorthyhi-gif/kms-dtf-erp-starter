@@ -1,0 +1,8 @@
+-r requirements.txt
+pytest>=8,<9
+pytest-cov>=6,<7
+pytest-qt>=4.4,<5
+black>=24,<26
+ruff>=0.9,<1
+mypy>=1.14,<2
+pre-commit>=4,<5

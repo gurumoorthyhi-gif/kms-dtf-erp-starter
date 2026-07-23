@@ -1,0 +1,92 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# IDE and OS
+.vscode/
+.idea/
+*.code-workspace
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs and runtime
+logs/*
+!logs/.gitkeep
+*.log
+*.pid
+
+# Build output
+build/
+dist/
+*.egg-info/
+installer-output/
+
+# Testing and caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Runtime business data
+local_data/*
+!local_data/.gitkeep
+backups/*
+!backups/.gitkeep
+exports/*
+!exports/.gitkeep
+downloads/*
+!downloads/.gitkeep
+uploads/*
+!uploads/.gitkeep
+previews/*
+!previews/.gitkeep
+thumbnails/*
+!thumbnails/.gitkeep
+
+# Customer artwork and production files
+*.psd
+*.psb
+*.cdr
+*.ai
+*.eps
+*.tif
+*.tiff
+
+# Secrets and credentials
+credentials/
+secrets/
+service-account*.json
+token*.json
+
+# AI model weights
+models/
+*.onnx
+*.pth
+*.pt
+*.ckpt
+*.safetensors
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
