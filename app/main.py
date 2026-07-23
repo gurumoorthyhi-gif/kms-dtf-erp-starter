@@ -12,22 +12,11 @@ from app.database import (
     create_session_factory,
     upgrade_database,
 )
-from app.modules.ai_engine import (
-    AIEngineClient,
-    AIJobManager,
-    AIResultHandler,
-)
 from app.modules.artwork import (
     ArtworkRepository,
     ArtworkService,
     ArtworkStorage,
     PreviewService,
-)
-from app.modules.artwork_studio import (
-    ArtworkStudioService,
-    ImageInspector,
-    ImageTransformer,
-    ThumbnailCache,
 )
 from app.modules.authentication import (
     ActivityRepository,
@@ -54,10 +43,30 @@ from app.modules.production import ProductionRepository, ProductionService
 from app.modules.products import ProductRepository, ProductService
 from app.modules.sales import SalesRepository, SalesService
 from app.modules.shipping import DispatchService, PackingService, ShippingRepository
-from app.ui.application import MainWindow
+
+
+def __getattr__(name: str):
+    """Preserve the public MainWindow export without eagerly importing the UI."""
+
+    if name == "MainWindow":
+        from app.ui.application import MainWindow
+
+        return MainWindow
+    raise AttributeError(name)
 
 
 def main() -> int:
+    # Heavy image/UI imports are deferred until launch. Import profiling showed these
+    # dominated non-GUI module startup and they are unnecessary for CLI tooling.
+    from app.modules.ai_engine import AIEngineClient, AIJobManager, AIResultHandler
+    from app.modules.artwork_studio import (
+        ArtworkStudioService,
+        ImageInspector,
+        ImageTransformer,
+        ThumbnailCache,
+    )
+    from app.ui.application import MainWindow
+
     install_global_exception_handler()
     settings = Settings.load()
     paths = initialize_directories(settings)

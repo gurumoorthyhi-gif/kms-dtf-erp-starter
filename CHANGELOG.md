@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.0
+
+- Prepared the tested Windows x64 release, installer/uninstaller, shortcuts,
+  upgrade-safe metadata, application icon, profiling, and release documentation.
+- Deferred measured heavy image/UI imports until application launch.
+
 ## 0.1.0
 
 - Initialized project structure.

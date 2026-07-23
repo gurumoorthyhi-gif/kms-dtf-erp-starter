@@ -33,6 +33,7 @@ build/
 dist/
 *.egg-info/
 installer-output/
+*.ico
 
 # Testing and caches
 .pytest_cache/

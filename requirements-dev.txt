@@ -6,3 +6,4 @@ black>=24,<26
 ruff>=0.9,<1
 mypy>=1.14,<2
 pre-commit>=4,<5
+pyinstaller>=6.10,<7
