@@ -60,6 +60,8 @@ class Sidebar(QFrame):
             "sales": "Sales",
             "invoices": "Invoices",
             "payments": "Payments",
+            "packing": "Packing",
+            "dispatch": "Dispatch",
             "settings": "Settings",
         }
         self._build_ui()

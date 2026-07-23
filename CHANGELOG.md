@@ -23,3 +23,5 @@
   and transactional purchase receipts.
 - Added Phase 15 quotations, invoices, PDF export, transactional payments, credit
   notes, outstanding balances, and customer/supplier ledgers.
+- Added Phase 16 packing lists, package measurements, controlled dispatch, shipping
+  labels, proof files, delivery histories, and customer notification events.

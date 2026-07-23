@@ -21,6 +21,7 @@ from app.modules.orders import OrderService
 from app.modules.production import ProductionService
 from app.modules.products import ProductService
 from app.modules.sales import SalesService
+from app.modules.shipping import DispatchService, PackingService
 from app.ui.application.router import PageRouter
 from app.ui.components import Sidebar, TopBar
 from app.ui.pages import (
@@ -29,11 +30,13 @@ from app.ui.pages import (
     ArtworkStudioPage,
     CustomersPage,
     DashboardPage,
+    DispatchPage,
     GangSheetPage,
     InventoryPage,
     InvoicesPage,
     LoginPage,
     OrdersPage,
+    PackingPage,
     PaymentsPage,
     ProductionPage,
     ProductsPage,
@@ -64,6 +67,8 @@ class MainWindow(QMainWindow):
         "sales": ("Sales", "Quotations and conversion workflow"),
         "invoices": ("Invoices", "Customer invoices and PDF export"),
         "payments": ("Payments", "Advances, receipts, credits, and balances"),
+        "packing": ("Packing", "Packing lists, package counts, and weights"),
+        "dispatch": ("Dispatch", "Couriers, tracking, labels, and delivery"),
         "settings": ("Settings", "Application preferences"),
     }
 
@@ -82,6 +87,8 @@ class MainWindow(QMainWindow):
         inventory_service: InventoryService | None = None,
         purchase_service: PurchaseService | None = None,
         sales_service: SalesService | None = None,
+        packing_service: PackingService | None = None,
+        dispatch_service: DispatchService | None = None,
     ) -> None:
         super().__init__()
         self._authentication_service = authentication_service
@@ -213,6 +220,16 @@ class MainWindow(QMainWindow):
             self.payments_page = PaymentsPage(sales_service, auto_refresh=False)
             self.router.register_page("payments", self.payments_page)
         self.sidebar.set_page_visible("payments", self.payments_page is not None)
+        self.packing_page: PackingPage | None = None
+        if packing_service is not None and order_service is not None:
+            self.packing_page = PackingPage(packing_service, order_service, auto_refresh=False)
+            self.router.register_page("packing", self.packing_page)
+        self.sidebar.set_page_visible("packing", self.packing_page is not None)
+        self.dispatch_page: DispatchPage | None = None
+        if dispatch_service is not None and packing_service is not None:
+            self.dispatch_page = DispatchPage(dispatch_service, packing_service, auto_refresh=False)
+            self.router.register_page("dispatch", self.dispatch_page)
+        self.sidebar.set_page_visible("dispatch", self.dispatch_page is not None)
         self.login_page: LoginPage | None = None
         if authentication_service is not None:
             self.login_page = LoginPage(authentication_service)
@@ -323,6 +340,16 @@ class MainWindow(QMainWindow):
             self.sidebar.set_page_visible("payments", can_view_payments)
             if can_view_payments:
                 self.payments_page.refresh()
+        if self.packing_page is not None:
+            can_view_packing = "packing.view" in user.permissions
+            self.sidebar.set_page_visible("packing", can_view_packing)
+            if can_view_packing:
+                self.packing_page.refresh()
+        if self.dispatch_page is not None:
+            can_view_dispatch = "dispatch.view" in user.permissions
+            self.sidebar.set_page_visible("dispatch", can_view_dispatch)
+            if can_view_dispatch:
+                self.dispatch_page.refresh()
         self.navigate("dashboard")
 
     def logout(self) -> None:
