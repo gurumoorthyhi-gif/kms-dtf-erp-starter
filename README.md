@@ -24,3 +24,13 @@ pip install -r requirements-dev.txt
 Copy-Item .env.example .env
 python run.py
 ```
+
+## First administrator
+
+After installing dependencies, create the initial administrator from the project
+root. The password is requested securely and is never accepted as a command-line
+argument:
+
+```powershell
+python -m scripts.seed_admin --username admin --full-name "System Administrator"
+```

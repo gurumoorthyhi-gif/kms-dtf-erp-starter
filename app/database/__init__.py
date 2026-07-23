@@ -2,6 +2,7 @@
 
 from app.database.base import Base
 from app.database.health import check_database_health
+from app.database.initialize import upgrade_database
 from app.database.session import (
     SessionFactory,
     create_database_engine,
@@ -18,4 +19,5 @@ __all__ = [
     "create_session_factory",
     "resolve_database_url",
     "session_scope",
+    "upgrade_database",
 ]
