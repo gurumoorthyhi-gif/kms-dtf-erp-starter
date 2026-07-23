@@ -20,6 +20,7 @@ from app.modules.authentication import (
     RoleRepository,
     UserRepository,
 )
+from app.modules.customers import CustomerRepository, CustomerService
 from app.modules.dashboard import DashboardRepository, DashboardService
 from app.ui.application import MainWindow
 
@@ -47,13 +48,18 @@ def main() -> int:
         PasswordHasher(),
         CurrentUserSession(),
     )
+    authentication_service.seed_roles_and_permissions()
     dashboard_service = DashboardService(
         DashboardRepository(session_factory),
         authentication_service,
     )
+    customer_service = CustomerService(
+        CustomerRepository(session_factory),
+        authentication_service,
+    )
 
     app = QApplication(sys.argv)
-    window = MainWindow(authentication_service, dashboard_service)
+    window = MainWindow(authentication_service, dashboard_service, customer_service)
     window.show()
     try:
         return app.exec()

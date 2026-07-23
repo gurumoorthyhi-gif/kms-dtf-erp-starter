@@ -71,7 +71,6 @@ def test_dashboard_repository_reads_existing_activity_only(tmp_path: Path) -> No
     assert overview.metrics == DashboardMetrics()
     assert len(overview.recent_activity) == 1
     assert overview.recent_activity[0].action == "login.succeeded"
-    assert "customers" not in Base.metadata.tables
     assert "orders" not in Base.metadata.tables
     engine.dispose()
 

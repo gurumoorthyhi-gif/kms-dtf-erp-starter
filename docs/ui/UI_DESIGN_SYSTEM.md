@@ -27,3 +27,10 @@
 - Production pipeline, recent activity, and low-stock panels
 - Quick actions are limited to refresh and existing Settings navigation
 - Dashboard UI imports no database or ORM modules
+
+## Phase 6 customers
+
+- Searchable and status-filtered customer table
+- Glass-styled create/edit form with billing and shipping tabs
+- Read-only customer details dialog
+- Service-backed deactivation rather than destructive deletion
