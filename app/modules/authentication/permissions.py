@@ -39,6 +39,8 @@ PERMISSIONS = {
     "communications.send": "Send and reply to customer messages",
     "communications.receive": "Synchronize communication inboxes",
     "communications.manage": "Attach messages and manage templates",
+    "backups.manage": "Create, verify, and restore database backups",
+    "audit.view": "View immutable audit history",
 }
 
 ROLE_PERMISSIONS = {
@@ -80,6 +82,8 @@ ROLE_PERMISSIONS = {
             "communications.send",
             "communications.receive",
             "communications.manage",
+            "backups.manage",
+            "audit.view",
         }
     ),
     "Designer": frozenset(

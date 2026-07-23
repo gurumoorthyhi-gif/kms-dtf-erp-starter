@@ -65,6 +65,7 @@ class Sidebar(QFrame):
             "cloud_storage": "Cloud Storage",
             "whatsapp": "WhatsApp",
             "email": "Email",
+            "operations": "Reports & Backup",
             "settings": "Settings",
         }
         self._build_ui()

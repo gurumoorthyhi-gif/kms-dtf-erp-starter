@@ -17,6 +17,7 @@ from app.modules.communications import models as communications_models
 from app.modules.customers import models as customer_models
 from app.modules.gang_sheets import models as gang_sheet_models
 from app.modules.inventory import models as inventory_models
+from app.modules.operations import models as operations_models
 from app.modules.orders import models as order_models
 from app.modules.production import models as production_models
 from app.modules.products import models as product_models
@@ -32,6 +33,7 @@ _ = (
     gang_sheet_models,
     inventory_models,
     order_models,
+    operations_models,
     product_models,
     production_models,
     sales_models,

@@ -14,6 +14,7 @@ from app.ui.pages.inventory import (
     SuppliersPage,
 )
 from app.ui.pages.login import LoginPage
+from app.ui.pages.operations import OperationsPage
 from app.ui.pages.orders import OrderCreationDialog, OrderDetailsDialog, OrdersPage
 from app.ui.pages.production import ProductionHistoryDialog, ProductionPage
 from app.ui.pages.products import ProductFormDialog, ProductsPage
@@ -45,6 +46,7 @@ __all__ = [
     "OrderCreationDialog",
     "OrderDetailsDialog",
     "OrdersPage",
+    "OperationsPage",
     "ProductFormDialog",
     "ProductsPage",
     "ProductionHistoryDialog",

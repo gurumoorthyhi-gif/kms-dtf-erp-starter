@@ -22,6 +22,8 @@ def test_database_health_and_metadata(tmp_path: Path) -> None:
         "artwork_approvals",
         "artwork_versions",
         "artworks",
+        "audit_records",
+        "backup_history",
         "cloud_files",
         "communication_attachments",
         "communication_messages",

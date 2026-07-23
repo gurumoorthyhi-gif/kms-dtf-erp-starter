@@ -48,6 +48,7 @@ from app.modules.inventory import (
     PurchaseRepository,
     PurchaseService,
 )
+from app.modules.operations import AuditService, BackupService, ReportService
 from app.modules.orders import OrderRepository, OrderService
 from app.modules.production import ProductionRepository, ProductionService
 from app.modules.products import ProductRepository, ProductService
@@ -157,6 +158,9 @@ def main() -> int:
     shipping_repository = ShippingRepository(session_factory)
     packing_service = PackingService(shipping_repository, authentication_service)
     dispatch_service = DispatchService(shipping_repository, authentication_service)
+    report_service = ReportService(session_factory)
+    backup_service = BackupService(engine, session_factory, paths.backup_directory, cloud_service)
+    audit_service = AuditService(session_factory)
 
     app = QApplication(sys.argv)
     window = MainWindow(
@@ -178,6 +182,9 @@ def main() -> int:
         cloud_storage_service=cloud_service,
         whatsapp_service=whatsapp_service,
         email_service=email_service,
+        report_service=report_service,
+        backup_service=backup_service,
+        audit_service=audit_service,
     )
     window.show()
     try:

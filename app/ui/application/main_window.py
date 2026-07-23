@@ -19,6 +19,7 @@ from app.modules.customers import CustomerService
 from app.modules.dashboard import DashboardService
 from app.modules.gang_sheets import GangSheetService
 from app.modules.inventory import InventoryService, PurchaseService
+from app.modules.operations import AuditService, BackupService, ReportService
 from app.modules.orders import OrderService
 from app.modules.production import ProductionService
 from app.modules.products import ProductService
@@ -39,6 +40,7 @@ from app.ui.pages import (
     InventoryPage,
     InvoicesPage,
     LoginPage,
+    OperationsPage,
     OrdersPage,
     PackingPage,
     PaymentsPage,
@@ -77,6 +79,7 @@ class MainWindow(QMainWindow):
         "cloud_storage": ("Cloud Storage", "Offline queue, transfers, and synchronization"),
         "whatsapp": ("WhatsApp", "Shared customer conversation inbox"),
         "email": ("Email", "Customer email inbox and history"),
+        "operations": ("Reports & Backup", "Reports, verified backup, restore, and audit"),
         "settings": ("Settings", "Application preferences"),
     }
 
@@ -100,6 +103,9 @@ class MainWindow(QMainWindow):
         cloud_storage_service: CloudStorageService | None = None,
         whatsapp_service: CommunicationService | None = None,
         email_service: CommunicationService | None = None,
+        report_service: ReportService | None = None,
+        backup_service: BackupService | None = None,
+        audit_service: AuditService | None = None,
     ) -> None:
         super().__init__()
         self._authentication_service = authentication_service
@@ -256,6 +262,11 @@ class MainWindow(QMainWindow):
             self.email_page = EmailInboxPage(email_service, auto_refresh=False)
             self.router.register_page("email", self.email_page)
         self.sidebar.set_page_visible("email", self.email_page is not None)
+        self.operations_page: OperationsPage | None = None
+        if report_service and backup_service and audit_service:
+            self.operations_page = OperationsPage(report_service, backup_service, audit_service)
+            self.router.register_page("operations", self.operations_page)
+        self.sidebar.set_page_visible("operations", self.operations_page is not None)
         self.login_page: LoginPage | None = None
         if authentication_service is not None:
             self.login_page = LoginPage(authentication_service)
@@ -390,6 +401,11 @@ class MainWindow(QMainWindow):
             self.sidebar.set_page_visible("email", can_view_communications)
             if can_view_communications:
                 self.email_page.refresh()
+        if self.operations_page is not None:
+            can_view_operations = (
+                "reports.view" in user.permissions or "audit.view" in user.permissions
+            )
+            self.sidebar.set_page_visible("operations", can_view_operations)
         self.navigate("dashboard")
 
     def logout(self) -> None:
