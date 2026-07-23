@@ -24,6 +24,10 @@ PERMISSIONS = {
     "inventory.manage": "Receive, issue, and adjust stock",
     "purchases.view": "View suppliers and purchases",
     "purchases.manage": "Manage suppliers, purchases, and receipts",
+    "sales.view": "View quotations, invoices, and ledgers",
+    "sales.manage": "Create quotations, invoices, and credit notes",
+    "payments.view": "View payment history",
+    "payments.manage": "Record customer payments",
 }
 
 ROLE_PERMISSIONS = {
@@ -50,6 +54,10 @@ ROLE_PERMISSIONS = {
             "inventory.manage",
             "purchases.view",
             "purchases.manage",
+            "sales.view",
+            "sales.manage",
+            "payments.view",
+            "payments.manage",
         }
     ),
     "Designer": frozenset(
@@ -76,7 +84,18 @@ ROLE_PERMISSIONS = {
             "production.manage",
         }
     ),
-    "Accountant": frozenset({"dashboard.view", "reports.view", "customers.view"}),
+    "Accountant": frozenset(
+        {
+            "dashboard.view",
+            "reports.view",
+            "customers.view",
+            "purchases.view",
+            "sales.view",
+            "sales.manage",
+            "payments.view",
+            "payments.manage",
+        }
+    ),
     "Packing Staff": frozenset(
         {"dashboard.view", "orders.view", "production.view", "production.manage"}
     ),

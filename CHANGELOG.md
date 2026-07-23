@@ -21,3 +21,5 @@
 - Added Phase 13 production queues, validated stages, quality, wastage, and history.
 - Added Phase 14 inventory, stock movements, low-stock warnings, suppliers, purchases,
   and transactional purchase receipts.
+- Added Phase 15 quotations, invoices, PDF export, transactional payments, credit
+  notes, outstanding balances, and customer/supplier ledgers.

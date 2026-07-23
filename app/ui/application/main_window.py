@@ -20,6 +20,7 @@ from app.modules.inventory import InventoryService, PurchaseService
 from app.modules.orders import OrderService
 from app.modules.production import ProductionService
 from app.modules.products import ProductService
+from app.modules.sales import SalesService
 from app.ui.application.router import PageRouter
 from app.ui.components import Sidebar, TopBar
 from app.ui.pages import (
@@ -30,11 +31,14 @@ from app.ui.pages import (
     DashboardPage,
     GangSheetPage,
     InventoryPage,
+    InvoicesPage,
     LoginPage,
     OrdersPage,
+    PaymentsPage,
     ProductionPage,
     ProductsPage,
     PurchasesPage,
+    SalesPage,
     SettingsPage,
     SuppliersPage,
 )
@@ -57,6 +61,9 @@ class MainWindow(QMainWindow):
         "inventory": ("Inventory", "Stock levels, movements, and reorder warnings"),
         "suppliers": ("Suppliers", "Supplier directory and purchasing contacts"),
         "purchases": ("Purchases", "Purchase orders and stock receipts"),
+        "sales": ("Sales", "Quotations and conversion workflow"),
+        "invoices": ("Invoices", "Customer invoices and PDF export"),
+        "payments": ("Payments", "Advances, receipts, credits, and balances"),
         "settings": ("Settings", "Application preferences"),
     }
 
@@ -74,6 +81,7 @@ class MainWindow(QMainWindow):
         production_service: ProductionService | None = None,
         inventory_service: InventoryService | None = None,
         purchase_service: PurchaseService | None = None,
+        sales_service: SalesService | None = None,
     ) -> None:
         super().__init__()
         self._authentication_service = authentication_service
@@ -191,6 +199,20 @@ class MainWindow(QMainWindow):
             )
             self.router.register_page("purchases", self.purchases_page)
         self.sidebar.set_page_visible("purchases", self.purchases_page is not None)
+        self.sales_page: SalesPage | None = None
+        self.invoices_page: InvoicesPage | None = None
+        if sales_service is not None and order_service is not None:
+            self.sales_page = SalesPage(sales_service, order_service, auto_refresh=False)
+            self.invoices_page = InvoicesPage(sales_service, order_service, auto_refresh=False)
+            self.router.register_page("sales", self.sales_page)
+            self.router.register_page("invoices", self.invoices_page)
+        self.sidebar.set_page_visible("sales", self.sales_page is not None)
+        self.sidebar.set_page_visible("invoices", self.invoices_page is not None)
+        self.payments_page: PaymentsPage | None = None
+        if sales_service is not None:
+            self.payments_page = PaymentsPage(sales_service, auto_refresh=False)
+            self.router.register_page("payments", self.payments_page)
+        self.sidebar.set_page_visible("payments", self.payments_page is not None)
         self.login_page: LoginPage | None = None
         if authentication_service is not None:
             self.login_page = LoginPage(authentication_service)
@@ -287,6 +309,20 @@ class MainWindow(QMainWindow):
             self.sidebar.set_page_visible("purchases", can_view_purchases)
             if can_view_purchases:
                 self.purchases_page.refresh()
+        can_view_sales = "sales.view" in user.permissions
+        if self.sales_page is not None:
+            self.sidebar.set_page_visible("sales", can_view_sales)
+            if can_view_sales:
+                self.sales_page.refresh()
+        if self.invoices_page is not None:
+            self.sidebar.set_page_visible("invoices", can_view_sales)
+            if can_view_sales:
+                self.invoices_page.refresh()
+        if self.payments_page is not None:
+            can_view_payments = "payments.view" in user.permissions
+            self.sidebar.set_page_visible("payments", can_view_payments)
+            if can_view_payments:
+                self.payments_page.refresh()
         self.navigate("dashboard")
 
     def logout(self) -> None:
