@@ -15,6 +15,7 @@ from app.ui.pages.login import LoginPage
 from app.ui.pages.orders import OrderCreationDialog, OrderDetailsDialog, OrdersPage
 from app.ui.pages.production import ProductionHistoryDialog, ProductionPage
 from app.ui.pages.products import ProductFormDialog, ProductsPage
+from app.ui.pages.sales import InvoicesPage, PaymentsPage, SalesPage
 from app.ui.pages.settings import SettingsPage
 
 __all__ = [
@@ -44,6 +45,9 @@ __all__ = [
     "ProductionPage",
     "PurchasesPage",
     "SettingsPage",
+    "InvoicesPage",
+    "PaymentsPage",
+    "SalesPage",
     "SuppliersPage",
 ]
 from app.ui.pages.customers import CustomerDetailsDialog, CustomerFormDialog, CustomersPage

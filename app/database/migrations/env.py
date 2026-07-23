@@ -18,6 +18,7 @@ from app.modules.inventory import models as inventory_models
 from app.modules.orders import models as order_models
 from app.modules.production import models as production_models
 from app.modules.products import models as product_models
+from app.modules.sales import models as sales_models
 
 _ = (
     artwork_models,
@@ -28,6 +29,7 @@ _ = (
     order_models,
     product_models,
     production_models,
+    sales_models,
 )
 
 config = context.config

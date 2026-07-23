@@ -49,6 +49,7 @@ from app.modules.inventory import (
 from app.modules.orders import OrderRepository, OrderService
 from app.modules.production import ProductionRepository, ProductionService
 from app.modules.products import ProductRepository, ProductService
+from app.modules.sales import SalesRepository, SalesService
 from app.ui.application import MainWindow
 
 
@@ -127,6 +128,10 @@ def main() -> int:
         PurchaseRepository(session_factory),
         authentication_service,
     )
+    sales_service = SalesService(
+        SalesRepository(session_factory),
+        authentication_service,
+    )
 
     app = QApplication(sys.argv)
     window = MainWindow(
@@ -142,6 +147,7 @@ def main() -> int:
         production_service=production_service,
         inventory_service=inventory_service,
         purchase_service=purchase_service,
+        sales_service=sales_service,
     )
     window.show()
     try:
