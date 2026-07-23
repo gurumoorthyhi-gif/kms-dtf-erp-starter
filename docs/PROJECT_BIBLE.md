@@ -14,6 +14,10 @@ UI → Service → Repository → Database
 
 External integrations remain isolated under `app/integrations`.
 
+Runtime configuration is loaded from `.env` into typed settings. Required local
+directories are created before services start, and application logs rotate under
+the configured log directory.
+
 ## UI direction
 
 - Glassmorphism surfaces
