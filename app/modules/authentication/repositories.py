@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from app.database import SessionFactory, session_scope
@@ -23,6 +23,10 @@ class UserRepository:
                 .options(selectinload(User.roles).selectinload(Role.permissions))
             )
             return session.scalar(statement)
+
+    def count(self) -> int:
+        with session_scope(self._session_factory) as session:
+            return session.scalar(select(func.count(User.id))) or 0
 
     def create(
         self,

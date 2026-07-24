@@ -101,6 +101,27 @@ def test_invalid_login_is_rejected_and_password_is_not_logged(authentication_con
     assert "definitely-wrong" not in failure.details
 
 
+def test_initial_administrator_can_only_be_created_once(authentication_context) -> None:
+    service, _, _, _ = authentication_context
+    assert service.can_create_initial_administrator() is True
+
+    created = service.create_initial_administrator(
+        username="owner",
+        password=ADMIN_PASSWORD,
+        full_name="Business Owner",
+        email="owner@example.com",
+    )
+
+    assert created.full_name == "Business Owner"
+    assert service.can_create_initial_administrator() is False
+    with pytest.raises(AuthorizationError, match="already exists"):
+        service.create_initial_administrator(
+            username="another",
+            password=ADMIN_PASSWORD,
+            full_name="Another Administrator",
+        )
+
+
 def test_logout_and_permissions_are_enforced(authentication_context) -> None:
     service, _, _, activities = authentication_context
     service.create_administrator(

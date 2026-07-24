@@ -5,6 +5,9 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QCheckBox,
+    QDialog,
+    QDialogButtonBox,
+    QFormLayout,
     QFrame,
     QLabel,
     QLineEdit,
@@ -21,6 +24,65 @@ from app.modules.authentication import (
     WindowsCredentialStore,
 )
 from app.ui.components.effects import apply_soft_shadow
+
+
+class CreateAdministratorDialog(QDialog):
+    """Collect the initial administrator identity without exposing role selection."""
+
+    def __init__(
+        self,
+        authentication_service: AuthenticationService,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self._authentication_service = authentication_service
+        self.setWindowTitle("Create administrator account")
+        self.setMinimumWidth(440)
+        form = QFormLayout(self)
+        self.full_name = QLineEdit()
+        self.username = QLineEdit()
+        self.email = QLineEdit()
+        self.password = QLineEdit()
+        self.confirm_password = QLineEdit()
+        self.password.setEchoMode(QLineEdit.EchoMode.Password)
+        self.confirm_password.setEchoMode(QLineEdit.EchoMode.Password)
+        for label, field in (
+            ("Administrator name", self.full_name),
+            ("Username", self.username),
+            ("Email (optional)", self.email),
+            ("Password", self.password),
+            ("Confirm password", self.confirm_password),
+        ):
+            form.addRow(label, field)
+        self.error_label = QLabel()
+        self.error_label.setObjectName("loginError")
+        self.error_label.setWordWrap(True)
+        form.addRow(self.error_label)
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(self.create_account)
+        buttons.rejected.connect(self.reject)
+        form.addRow(buttons)
+
+    def create_account(self) -> None:
+        if self.password.text() != self.confirm_password.text():
+            self.error_label.setText("Passwords do not match")
+            return
+        if self.email.text() and "@" not in self.email.text():
+            self.error_label.setText("Enter a valid email address")
+            return
+        try:
+            self._authentication_service.create_initial_administrator(
+                username=self.username.text(),
+                password=self.password.text(),
+                full_name=self.full_name.text(),
+                email=self.email.text() or None,
+            )
+        except (ValueError, PermissionError) as error:
+            self.error_label.setText(str(error))
+            return
+        self.accept()
 
 
 class LoginPage(QWidget):
@@ -84,6 +146,11 @@ class LoginPage(QWidget):
         card_layout.addWidget(self.remember_me)
         card_layout.addWidget(self.error_label)
         card_layout.addWidget(self.login_button)
+        self.create_account_button = QPushButton("Create administrator account")
+        self.create_account_button.setObjectName("secondaryButton")
+        self.create_account_button.clicked.connect(self.open_create_account)
+        card_layout.addWidget(self.create_account_button)
+        self._update_create_account_visibility()
 
         page_layout.addStretch()
         page_layout.addWidget(card, alignment=Qt.AlignmentFlag.AlignCenter)
@@ -132,6 +199,20 @@ class LoginPage(QWidget):
             self.remember_me.setChecked(False)
         self.error_label.clear()
         self.error_label.setVisible(False)
+        self._update_create_account_visibility()
+
+    def open_create_account(self) -> None:
+        dialog = CreateAdministratorDialog(self._authentication_service, self)
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            self.username_input.setText(dialog.username.text().strip().casefold())
+            self.error_label.setText("Administrator created. Enter the password to sign in.")
+            self.error_label.setVisible(True)
+            self._update_create_account_visibility()
+
+    def _update_create_account_visibility(self) -> None:
+        self.create_account_button.setVisible(
+            self._authentication_service.can_create_initial_administrator()
+        )
 
     def authenticated_user(self) -> AuthenticatedUser | None:
         """Expose current identity only for presentation-state checks."""

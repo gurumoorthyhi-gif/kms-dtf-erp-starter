@@ -14,7 +14,7 @@ from app.modules.authentication import (
 )
 from app.modules.dashboard import DashboardService, EmptyDashboardRepository
 from app.ui.application import MainWindow
-from app.ui.pages import LoginPage
+from app.ui.pages import CreateAdministratorDialog, LoginPage
 
 ADMIN_PASSWORD = "Correct-Horse-42"
 
@@ -111,3 +111,29 @@ def test_main_window_login_and_logout_flow(qtbot, authentication_service) -> Non
 
     assert window.router.current_page_name == "login"
     assert authentication_service.current_session.is_authenticated is False
+
+
+def test_create_administrator_dialog_collects_admin_details(qtbot, tmp_path: Path) -> None:
+    engine = create_database_engine(f"sqlite:///{tmp_path / 'first-run.db'}")
+    Base.metadata.create_all(engine)
+    factory = create_session_factory(engine)
+    service = AuthenticationService(
+        UserRepository(factory),
+        RoleRepository(factory),
+        ActivityRepository(factory),
+        PasswordHasher(),
+        CurrentUserSession(),
+    )
+    dialog = CreateAdministratorDialog(service)
+    qtbot.addWidget(dialog)
+    dialog.full_name.setText("KMS Owner")
+    dialog.username.setText("owner")
+    dialog.email.setText("owner@example.com")
+    dialog.password.setText(ADMIN_PASSWORD)
+    dialog.confirm_password.setText(ADMIN_PASSWORD)
+
+    dialog.create_account()
+
+    assert dialog.result() == dialog.DialogCode.Accepted
+    assert service.authenticate("owner", ADMIN_PASSWORD).full_name == "KMS Owner"
+    engine.dispose()

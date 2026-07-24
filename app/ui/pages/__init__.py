@@ -13,7 +13,7 @@ from app.ui.pages.inventory import (
     PurchasesPage,
     SuppliersPage,
 )
-from app.ui.pages.login import LoginPage
+from app.ui.pages.login import CreateAdministratorDialog, LoginPage
 from app.ui.pages.operations import OperationsPage
 from app.ui.pages.orders import OrderCreationDialog, OrderDetailsDialog, OrdersPage
 from app.ui.pages.production import ProductionHistoryDialog, ProductionPage
@@ -43,6 +43,7 @@ __all__ = [
     "InventoryItemDialog",
     "InventoryPage",
     "LoginPage",
+    "CreateAdministratorDialog",
     "OrderCreationDialog",
     "OrderDetailsDialog",
     "OrdersPage",

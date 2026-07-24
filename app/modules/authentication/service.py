@@ -77,6 +77,28 @@ class AuthenticationService:
         )
         return self._to_authenticated_user(user)
 
+    def can_create_initial_administrator(self) -> bool:
+        """Allow self-service administrator creation only for an empty database."""
+
+        return self._users.count() == 0
+
+    def create_initial_administrator(
+        self,
+        *,
+        username: str,
+        password: str,
+        full_name: str,
+        email: str | None = None,
+    ) -> AuthenticatedUser:
+        if not self.can_create_initial_administrator():
+            raise AuthorizationError("The initial administrator already exists")
+        return self.create_administrator(
+            username=username,
+            password=password,
+            full_name=full_name,
+            email=email,
+        )
+
     def authenticate(self, username: str, password: str) -> AuthenticatedUser:
         normalized_username = username.strip().casefold()
         user = self._users.get_by_username(normalized_username)
