@@ -19,6 +19,20 @@ from app.ui.pages import LoginPage
 ADMIN_PASSWORD = "Correct-Horse-42"
 
 
+class MemoryCredentialStore:
+    def __init__(self, value=None) -> None:
+        self.value = value
+
+    def load(self):
+        return self.value
+
+    def save(self, username: str, password: str) -> None:
+        self.value = (username.strip().casefold(), password)
+
+    def clear(self) -> None:
+        self.value = None
+
+
 @pytest.fixture
 def authentication_service(tmp_path: Path):
     engine = create_database_engine(f"sqlite:///{tmp_path / 'login-ui.db'}")
@@ -41,7 +55,7 @@ def authentication_service(tmp_path: Path):
 
 
 def test_login_page_rejects_invalid_credentials(qtbot, authentication_service) -> None:
-    page = LoginPage(authentication_service)
+    page = LoginPage(authentication_service, MemoryCredentialStore())
     qtbot.addWidget(page)
     page.username_input.setText("admin")
     page.password_input.setText("wrong-password")
@@ -51,6 +65,23 @@ def test_login_page_rejects_invalid_credentials(qtbot, authentication_service) -
     assert page.error_label.isVisible() is False or page.error_label.text()
     assert page.error_label.text() == "Invalid username or password"
     assert page.password_input.text() == ""
+
+
+def test_login_page_remembers_and_restores_credentials(qtbot, authentication_service) -> None:
+    store = MemoryCredentialStore()
+    page = LoginPage(authentication_service, store)
+    qtbot.addWidget(page)
+    page.username_input.setText("ADMIN")
+    page.password_input.setText(ADMIN_PASSWORD)
+    page.remember_me.setChecked(True)
+
+    qtbot.mouseClick(page.login_button, Qt.MouseButton.LeftButton)
+    page.reset()
+
+    assert store.value == ("admin", ADMIN_PASSWORD)
+    assert page.username_input.text() == "admin"
+    assert page.password_input.text() == ADMIN_PASSWORD
+    assert page.remember_me.isChecked()
 
 
 def test_main_window_login_and_logout_flow(qtbot, authentication_service) -> None:

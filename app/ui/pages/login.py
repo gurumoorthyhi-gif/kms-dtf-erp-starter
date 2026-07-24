@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
+    QCheckBox,
     QFrame,
     QLabel,
     QLineEdit,
@@ -16,6 +17,8 @@ from app.modules.authentication import (
     AuthenticatedUser,
     AuthenticationError,
     AuthenticationService,
+    CredentialStoreProtocol,
+    WindowsCredentialStore,
 )
 from app.ui.components.effects import apply_soft_shadow
 
@@ -28,10 +31,12 @@ class LoginPage(QWidget):
     def __init__(
         self,
         authentication_service: AuthenticationService,
+        credential_store: CredentialStoreProtocol | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._authentication_service = authentication_service
+        self._credential_store = credential_store or WindowsCredentialStore()
 
         page_layout = QVBoxLayout(self)
         page_layout.setContentsMargins(24, 24, 24, 24)
@@ -58,6 +63,7 @@ class LoginPage(QWidget):
         self.password_input.setPlaceholderText("Password")
         self.password_input.setAccessibleName("Password")
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.remember_me = QCheckBox("Remember me on this computer")
 
         self.error_label = QLabel("")
         self.error_label.setObjectName("loginError")
@@ -75,6 +81,7 @@ class LoginPage(QWidget):
         card_layout.addSpacing(10)
         card_layout.addWidget(self.username_input)
         card_layout.addWidget(self.password_input)
+        card_layout.addWidget(self.remember_me)
         card_layout.addWidget(self.error_label)
         card_layout.addWidget(self.login_button)
 
@@ -98,12 +105,31 @@ class LoginPage(QWidget):
             self.error_label.setVisible(True)
             return
 
+        if self.remember_me.isChecked():
+            try:
+                self._credential_store.save(
+                    self.username_input.text(),
+                    self.password_input.text(),
+                )
+            except (ValueError, RuntimeError) as error:
+                self.error_label.setText(str(error))
+                self.error_label.setVisible(True)
+        else:
+            self._credential_store.clear()
         self.password_input.clear()
         self.login_succeeded.emit(user)
 
     def reset(self) -> None:
-        self.username_input.clear()
-        self.password_input.clear()
+        remembered = self._credential_store.load()
+        if remembered:
+            username, password = remembered
+            self.username_input.setText(username)
+            self.password_input.setText(password)
+            self.remember_me.setChecked(True)
+        else:
+            self.username_input.clear()
+            self.password_input.clear()
+            self.remember_me.setChecked(False)
         self.error_label.clear()
         self.error_label.setVisible(False)
 

@@ -1,5 +1,9 @@
 """Authentication and authorization module."""
 
+from app.modules.authentication.credential_store import (
+    CredentialStoreProtocol,
+    WindowsCredentialStore,
+)
 from app.modules.authentication.current_user import AuthenticatedUser, CurrentUserSession
 from app.modules.authentication.models import ActivityLog, Permission, Role, User
 from app.modules.authentication.repositories import (
@@ -19,6 +23,7 @@ from app.modules.authentication.service import (
 )
 
 __all__ = [
+    "CredentialStoreProtocol",
     "ActivityLog",
     "ActivityRepository",
     "AuthenticatedUser",
@@ -34,4 +39,5 @@ __all__ = [
     "RoleRepository",
     "User",
     "UserRepository",
+    "WindowsCredentialStore",
 ]
