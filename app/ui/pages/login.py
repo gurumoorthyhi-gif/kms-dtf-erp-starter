@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -26,6 +27,22 @@ from app.modules.authentication import (
 from app.ui.components.effects import apply_soft_shadow
 
 
+def add_password_visibility_toggle(field: QLineEdit) -> QAction:
+    """Add an accessible eye control to a password input."""
+
+    action = QAction("👁", field)
+    field.addAction(action, QLineEdit.ActionPosition.TrailingPosition)
+    action.setCheckable(True)
+    action.setToolTip("Show password")
+
+    def toggle(visible: bool) -> None:
+        field.setEchoMode(QLineEdit.EchoMode.Normal if visible else QLineEdit.EchoMode.Password)
+        action.setToolTip("Hide password" if visible else "Show password")
+
+    action.toggled.connect(toggle)
+    return action
+
+
 class CreateAdministratorDialog(QDialog):
     """Collect the initial administrator identity without exposing role selection."""
 
@@ -46,6 +63,8 @@ class CreateAdministratorDialog(QDialog):
         self.confirm_password = QLineEdit()
         self.password.setEchoMode(QLineEdit.EchoMode.Password)
         self.confirm_password.setEchoMode(QLineEdit.EchoMode.Password)
+        self.password_visibility_action = add_password_visibility_toggle(self.password)
+        self.confirm_visibility_action = add_password_visibility_toggle(self.confirm_password)
         for label, field in (
             ("Administrator name", self.full_name),
             ("Username", self.username),
@@ -125,6 +144,7 @@ class LoginPage(QWidget):
         self.password_input.setPlaceholderText("Password")
         self.password_input.setAccessibleName("Password")
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
+        self.password_visibility_action = add_password_visibility_toggle(self.password_input)
         self.remember_me = QCheckBox("Remember me on this computer")
 
         self.error_label = QLabel("")

@@ -84,6 +84,19 @@ def test_login_page_remembers_and_restores_credentials(qtbot, authentication_ser
     assert page.remember_me.isChecked()
 
 
+def test_password_eye_toggles_login_password_visibility(qtbot, authentication_service) -> None:
+    page = LoginPage(authentication_service, MemoryCredentialStore())
+    qtbot.addWidget(page)
+    page.password_input.setText(ADMIN_PASSWORD)
+
+    page.password_visibility_action.trigger()
+    assert page.password_input.echoMode() == page.password_input.EchoMode.Normal
+    assert page.password_input.text() == ADMIN_PASSWORD
+
+    page.password_visibility_action.trigger()
+    assert page.password_input.echoMode() == page.password_input.EchoMode.Password
+
+
 def test_main_window_login_and_logout_flow(qtbot, authentication_service) -> None:
     dashboard_service = DashboardService(
         EmptyDashboardRepository(),
@@ -131,6 +144,11 @@ def test_create_administrator_dialog_collects_admin_details(qtbot, tmp_path: Pat
     dialog.email.setText("owner@example.com")
     dialog.password.setText(ADMIN_PASSWORD)
     dialog.confirm_password.setText(ADMIN_PASSWORD)
+
+    dialog.password_visibility_action.trigger()
+    dialog.confirm_visibility_action.trigger()
+    assert dialog.password.echoMode() == dialog.password.EchoMode.Normal
+    assert dialog.confirm_password.echoMode() == dialog.confirm_password.EchoMode.Normal
 
     dialog.create_account()
 
