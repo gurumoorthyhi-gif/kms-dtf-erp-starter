@@ -1,5 +1,30 @@
 # Changelog
 
+## Unreleased
+
+- Added the supplied KMS DTF ERP icon set to application navigation with
+  transparent symbol backgrounds and glass-style active states.
+- Added responsive shell sizing, compact header controls, and scrollable navigation
+  so icons and labels remain separated in small, maximized, and restored windows.
+- Removed the sidebar collapse alignment jump, centered collapsed navigation icons,
+  restored a font-independent password eye button, and packaged the Windows
+  credential backend used by Remember me.
+- Replaced hover expansion with a glass-style arrow below the KMS logo and shifted
+  collapsed navigation icons slightly left for improved visual alignment.
+- Aligned each active glass selection with its icon and tightened the logo-to-arrow
+  spacing in the collapsed sidebar.
+- Widened the collapsed sidebar and standardized compact navigation buttons to a
+  square glass selection footprint.
+- Added the supplied KMS logo, centered the painted toggle arrow, and balanced the
+  vertical logo-to-arrow and arrow-to-Dashboard spacing.
+- Split the collapsed sidebar into centered icon and scrollbar lanes, aligned the
+  logo and toggle to the icon lane, and applied the KMS logo to application icons.
+- Moved the scrollbar lane farther right while preserving the established icon
+  centerline and equalizing the visual gap beside navigation selections.
+- Rebuilt the navigation to match the supplied dark glass reference with a narrow
+  icon rail, gradient symbol tiles, compact label rows, active pill, and fixed
+  bottom double-chevron control.
+
 ## 1.0.0
 
 - Prepared the tested Windows x64 release, installer/uninstaller, shortcuts,

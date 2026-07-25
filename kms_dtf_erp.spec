@@ -1,13 +1,20 @@
-from PyInstaller.utils.hooks import collect_data_files
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
-datas = [("assets/kms_dtf_erp.svg", "assets")] + collect_data_files("alembic")
+datas = [
+    ("assets/kms_dtf_erp.svg", "assets"),
+    ("assets/branding", "assets/branding"),
+    ("assets/icons/navigation", "assets/icons/navigation"),
+] + collect_data_files("alembic")
 
 a = Analysis(
     ["run.py"],
     pathex=[],
     binaries=[],
     datas=datas,
-    hiddenimports=["app.database.migrations.env"],
+    hiddenimports=[
+        "app.database.migrations.env",
+        *collect_submodules("keyring.backends"),
+    ],
     hookspath=[],
     runtime_hooks=[],
     excludes=["pytest", "mypy", "black", "ruff"],

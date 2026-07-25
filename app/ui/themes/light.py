@@ -9,42 +9,92 @@ QMainWindow, QWidget#applicationRoot {
 }
 
 QFrame#sidebar {
-    background: rgba(255, 255, 255, 232);
-    border: 1px solid rgba(255, 255, 255, 185);
-    border-radius: 22px;
+    background: qlineargradient(
+        x1: 0, y1: 0, x2: 0.92, y2: 1,
+        stop: 0 #182746,
+        stop: 0.42 #2F4D7B,
+        stop: 0.74 #5478AB,
+        stop: 1 #9EB4E8
+    );
+    border: 1px solid rgba(202, 218, 255, 62);
+    border-radius: 18px;
+}
+
+QFrame#iconRail {
+    background: rgba(25, 42, 76, 72);
+    border: 1px solid rgba(210, 224, 255, 42);
+    border-radius: 16px;
+}
+
+QScrollArea#navigationScroll, QWidget#navigationContent {
+    background: transparent;
+    border: 0;
 }
 
 QLabel#brandName {
-    color: #29345C;
-    font-size: 16px;
+    color: #F7FAFF;
+    font-size: 13px;
     font-weight: 700;
 }
 
 QToolButton#navigationButton {
     background: transparent;
     border: 0;
-    border-radius: 14px;
-    color: #687292;
-    font-size: 14px;
+    border-radius: 9px;
+    color: #F5F8FF;
+    font-size: 10px;
     font-weight: 600;
-    padding: 8px 12px;
+    padding: 0 8px;
+    text-align: left;
+}
+
+QToolButton#navigationButton[expanded="false"] {
+    padding: 0;
+    text-align: center;
+}
+
+QToolButton#navigationButton[expanded="true"] {
+    padding: 0 5px;
     text-align: left;
 }
 
 QToolButton#navigationButton:hover {
-    background: rgba(108, 92, 231, 20);
-    color: #4B55A5;
+    background: rgba(113, 143, 211, 42);
+    color: white;
 }
 
 QToolButton#navigationButton[active="true"] {
     background: qlineargradient(
-        x1: 0, y1: 0, x2: 1, y2: 1,
-        stop: 0 rgba(108, 92, 231, 45),
-        stop: 0.58 rgba(79, 124, 255, 38),
-        stop: 1 rgba(66, 211, 255, 30)
+        x1: 0, y1: 0, x2: 1, y2: 0,
+        stop: 0 rgba(124, 105, 244, 115),
+        stop: 1 rgba(196, 211, 255, 72)
     );
-    border: 1px solid rgba(108, 92, 231, 62);
-    color: #5147B8;
+    border: 1px solid rgba(225, 232, 255, 82);
+    border-radius: 9px;
+    color: white;
+}
+
+QToolButton#navigationButton[expanded="true"][active="true"] {
+    background: qlineargradient(
+        x1: 0, y1: 0, x2: 1, y2: 0,
+        stop: 0 transparent,
+        stop: 0.30 transparent,
+        stop: 0.305 rgba(124, 105, 244, 100),
+        stop: 1 rgba(196, 211, 255, 68)
+    );
+    border: 0;
+}
+
+QToolButton#sidebarToggle {
+    background: rgba(126, 153, 216, 42);
+    border: 1px solid rgba(215, 227, 255, 58);
+    border-radius: 9px;
+    padding: 0;
+}
+
+QToolButton#sidebarToggle:hover {
+    background: rgba(131, 112, 239, 105);
+    border-color: rgba(230, 236, 255, 105);
 }
 
 QFrame#topBar, QFrame#glassCard {

@@ -66,6 +66,7 @@ def main() -> int:
         ThumbnailCache,
     )
     from app.ui.application import MainWindow
+    from app.ui.icons import create_brand_logo
 
     install_global_exception_handler()
     settings = Settings.load()
@@ -172,6 +173,7 @@ def main() -> int:
     audit_service = AuditService(session_factory)
 
     app = QApplication(sys.argv)
+    app.setWindowIcon(create_brand_logo())
     window = MainWindow(
         authentication_service,
         dashboard_service,

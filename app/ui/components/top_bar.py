@@ -23,8 +23,8 @@ class TopBar(QFrame):
         self.setObjectName("topBar")
         self.setFixedHeight(88)
 
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(24, 14, 20, 14)
+        self._layout = QHBoxLayout(self)
+        self._layout.setContentsMargins(24, 14, 20, 14)
 
         titles = QVBoxLayout()
         titles.setSpacing(2)
@@ -42,10 +42,10 @@ class TopBar(QFrame):
         self._logout_button.setVisible(False)
         self._logout_button.clicked.connect(self.logout_requested.emit)
 
-        layout.addLayout(titles)
-        layout.addStretch()
-        layout.addWidget(self._status)
-        layout.addWidget(self._logout_button)
+        self._layout.addLayout(titles)
+        self._layout.addStretch()
+        self._layout.addWidget(self._status)
+        self._layout.addWidget(self._logout_button)
         apply_soft_shadow(self)
 
     @property
@@ -63,3 +63,19 @@ class TopBar(QFrame):
 
         self._status.setText(full_name or "Foundation mode")
         self._logout_button.setVisible(full_name is not None)
+
+    def set_compact_mode(self, compact: bool) -> None:
+        """Keep header controls readable in smaller windows."""
+
+        self.setFixedHeight(68 if compact else 88)
+        self._layout.setContentsMargins(
+            16 if compact else 24,
+            8 if compact else 14,
+            14 if compact else 20,
+            8 if compact else 14,
+        )
+        self._subtitle.setVisible(not compact)
+        self._status.setVisible(not compact)
+        title_font = self._title.font()
+        title_font.setPixelSize(20 if compact else 24)
+        self._title.setFont(title_font)

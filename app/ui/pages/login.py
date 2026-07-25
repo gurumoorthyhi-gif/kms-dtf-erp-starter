@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QAction
+from PySide6.QtCore import QPointF, QRectF, Qt, Signal
+from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -32,15 +32,49 @@ def add_password_visibility_toggle(field: QLineEdit) -> QAction:
 
     action = QAction("👁", field)
     field.addAction(action, QLineEdit.ActionPosition.TrailingPosition)
+    action.setText("Show password")
+    action.setIcon(_password_eye_icon(False))
     action.setCheckable(True)
     action.setToolTip("Show password")
 
     def toggle(visible: bool) -> None:
         field.setEchoMode(QLineEdit.EchoMode.Normal if visible else QLineEdit.EchoMode.Password)
         action.setToolTip("Hide password" if visible else "Show password")
+        action.setText("Hide password" if visible else "Show password")
+        action.setIcon(_password_eye_icon(visible))
 
     action.toggled.connect(toggle)
     return action
+
+
+def _password_eye_icon(visible: bool) -> QIcon:
+    """Paint a reliable eye icon without depending on emoji font support."""
+
+    pixmap = QPixmap(24, 24)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    color = QColor("#5147B8")
+    painter.setPen(QPen(color, 1.8, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+    eye = QPainterPath(QPointF(3.0, 12.0))
+    eye.cubicTo(7.0, 6.5, 17.0, 6.5, 21.0, 12.0)
+    eye.cubicTo(17.0, 17.5, 7.0, 17.5, 3.0, 12.0)
+    painter.drawPath(eye)
+    painter.setBrush(color)
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.drawEllipse(QRectF(9.0, 9.0, 6.0, 6.0))
+    if visible:
+        painter.setPen(
+            QPen(
+                QColor("#7A84A3"),
+                1.8,
+                Qt.PenStyle.SolidLine,
+                Qt.PenCapStyle.RoundCap,
+            )
+        )
+        painter.drawLine(QPointF(5.0, 19.0), QPointF(19.0, 5.0))
+    painter.end()
+    return QIcon(pixmap)
 
 
 class CreateAdministratorDialog(QDialog):

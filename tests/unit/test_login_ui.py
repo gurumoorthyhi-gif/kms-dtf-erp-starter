@@ -88,6 +88,7 @@ def test_password_eye_toggles_login_password_visibility(qtbot, authentication_se
     page = LoginPage(authentication_service, MemoryCredentialStore())
     qtbot.addWidget(page)
     page.password_input.setText(ADMIN_PASSWORD)
+    assert page.password_visibility_action.icon().isNull() is False
 
     page.password_visibility_action.trigger()
     assert page.password_input.echoMode() == page.password_input.EchoMode.Normal

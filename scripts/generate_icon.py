@@ -1,22 +1,22 @@
-"""Generate the Windows multi-resolution icon from release brand colours."""
+"""Generate the Windows multi-resolution icon from the supplied KMS logo."""
 
 from pathlib import Path
 
-from PIL import Image, ImageDraw
+from PIL import Image
 
-target = Path(__file__).resolve().parents[1] / "assets" / "kms_dtf_erp.ico"
-image = Image.new("RGBA", (256, 256))
-pixels = image.load()
-for y in range(256):
-    for x in range(256):
-        ratio = (x + y) / 510
-        pixels[x, y] = (
-            int(124 * (1 - ratio) + 6 * ratio),
-            int(58 * (1 - ratio) + 182 * ratio),
-            int(237 * (1 - ratio) + 212 * ratio),
-            255,
-        )
-draw = ImageDraw.Draw(image)
-draw.rounded_rectangle((10, 10, 246, 246), radius=56, outline="white", width=5)
-draw.text((73, 65), "K", fill="white", stroke_width=2, stroke_fill="white")
-image.save(target, sizes=[(16, 16), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
+root = Path(__file__).resolve().parents[1]
+source = root / "assets" / "branding" / "kms-logo.png"
+target = root / "assets" / "kms_dtf_erp.ico"
+
+logo = Image.open(source).convert("RGBA")
+bounding_box = logo.getchannel("A").getbbox()
+if bounding_box is None:
+    raise ValueError("KMS logo contains no visible pixels")
+logo = logo.crop(bounding_box)
+logo.thumbnail((224, 224), Image.Resampling.LANCZOS)
+image = Image.new("RGBA", (256, 256), (0, 0, 0, 0))
+image.alpha_composite(logo, ((256 - logo.width) // 2, (256 - logo.height) // 2))
+image.save(
+    target,
+    sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)],
+)

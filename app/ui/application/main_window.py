@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from PySide6.QtGui import QResizeEvent
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QMainWindow,
@@ -27,6 +28,7 @@ from app.modules.sales import SalesService
 from app.modules.shipping import DispatchService, PackingService
 from app.ui.application.router import PageRouter
 from app.ui.components import Sidebar, TopBar
+from app.ui.icons import create_brand_logo
 from app.ui.pages import (
     AIToolsPage,
     ArtworkLibraryPage,
@@ -110,15 +112,16 @@ class MainWindow(QMainWindow):
         super().__init__()
         self._authentication_service = authentication_service
         self.setWindowTitle("KMS DTF ERP")
+        self.setWindowIcon(create_brand_logo())
         self.resize(1280, 800)
-        self.setMinimumSize(1024, 680)
+        self.setMinimumSize(860, 560)
         self.setStyleSheet(APP_STYLESHEET)
 
         root = QWidget()
         root.setObjectName("applicationRoot")
-        shell_layout = QHBoxLayout(root)
-        shell_layout.setContentsMargins(16, 16, 16, 16)
-        shell_layout.setSpacing(18)
+        self._shell_layout = QHBoxLayout(root)
+        self._shell_layout.setContentsMargins(16, 16, 16, 16)
+        self._shell_layout.setSpacing(18)
 
         self.sidebar = Sidebar()
         self.top_bar = TopBar()
@@ -273,13 +276,13 @@ class MainWindow(QMainWindow):
             self.router.register_page("login", self.login_page)
             self.login_page.login_succeeded.connect(self._complete_login)
 
-        workspace = QVBoxLayout()
-        workspace.setSpacing(18)
-        workspace.addWidget(self.top_bar)
-        workspace.addWidget(self.router, 1)
+        self._workspace_layout = QVBoxLayout()
+        self._workspace_layout.setSpacing(18)
+        self._workspace_layout.addWidget(self.top_bar)
+        self._workspace_layout.addWidget(self.router, 1)
 
-        shell_layout.addWidget(self.sidebar)
-        shell_layout.addLayout(workspace, 1)
+        self._shell_layout.addWidget(self.sidebar)
+        self._shell_layout.addLayout(self._workspace_layout, 1)
         self.setCentralWidget(root)
 
         self.sidebar.navigation_requested.connect(self.navigate)
@@ -416,3 +419,16 @@ class MainWindow(QMainWindow):
         self._authentication_service.logout()
         self.top_bar.set_authenticated_user(None)
         self._show_login()
+
+    def resizeEvent(self, event: QResizeEvent) -> None:
+        """Scale shell chrome without allowing labels or icons to collide."""
+
+        compact = event.size().width() < 1100 or event.size().height() < 720
+        self.sidebar.set_compact_mode(compact)
+        self.top_bar.set_compact_mode(compact)
+        margin = 8 if compact else 16
+        spacing = 10 if compact else 18
+        self._shell_layout.setContentsMargins(margin, margin, margin, margin)
+        self._shell_layout.setSpacing(spacing)
+        self._workspace_layout.setSpacing(spacing)
+        super().resizeEvent(event)
