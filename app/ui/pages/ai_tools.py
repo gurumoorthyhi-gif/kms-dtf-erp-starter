@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QObject, Signal, Slot
+from pathlib import Path
+
+from PySide6.QtCore import QObject, Qt, Signal, Slot
+from PySide6.QtGui import QPixmap, QWheelEvent
 from PySide6.QtWidgets import (
     QComboBox,
     QFormLayout,
+    QGraphicsPixmapItem,
+    QGraphicsScene,
+    QGraphicsView,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -23,7 +30,6 @@ from app.modules.ai_engine import (
     AITool,
 )
 from app.modules.artwork import ArtworkService
-from app.ui.pages.artwork_studio import BeforeAfterView
 
 TOOL_LABELS = {
     AITool.REMOVE_BACKGROUND: "Background removal",
@@ -36,6 +42,48 @@ TOOL_LABELS = {
     AITool.EDIT: "Image editing",
     AITool.ANALYSE: "Artwork analysis",
 }
+
+
+class ImageCanvas(QGraphicsView):
+    """Pixmap canvas used for AI before/after previews."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._scene = QGraphicsScene(self)
+        self._item = QGraphicsPixmapItem()
+        self._scene.addItem(self._item)
+        self.setScene(self._scene)
+        self.setDragMode(QGraphicsView.DragMode.ScrollHandDrag)
+        self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
+        self.setMinimumSize(320, 300)
+
+    def set_image(self, path: Path) -> None:
+        self.resetTransform()
+        self._item.setPixmap(QPixmap(str(path)))
+        self._scene.setSceneRect(self._item.boundingRect())
+        self.fitInView(self._item, Qt.AspectRatioMode.KeepAspectRatio)
+
+    def wheelEvent(self, event: QWheelEvent) -> None:
+        factor = 1.2 if event.angleDelta().y() > 0 else 1 / 1.2
+        self.scale(factor, factor)
+
+
+class BeforeAfterView(QWidget):
+    """Side-by-side AI source and result preview."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        layout = QHBoxLayout(self)
+        before_box = QGroupBox("Before")
+        before_layout = QVBoxLayout(before_box)
+        self.before = ImageCanvas()
+        before_layout.addWidget(self.before)
+        after_box = QGroupBox("After")
+        after_layout = QVBoxLayout(after_box)
+        self.after = ImageCanvas()
+        after_layout.addWidget(self.after)
+        layout.addWidget(before_box, 1)
+        layout.addWidget(after_box, 1)
 
 
 class AIJobBridge(QObject):

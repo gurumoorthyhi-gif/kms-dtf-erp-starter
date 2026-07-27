@@ -40,7 +40,6 @@ from app.modules.inventory import (
 )
 from app.modules.operations import AuditService, BackupService, ReportService
 from app.modules.orders import OrderRepository, OrderService
-from app.modules.production import ProductionRepository, ProductionService
 from app.modules.products import ProductRepository, ProductService
 from app.modules.sales import SalesRepository, SalesService
 from app.modules.shipping import DispatchService, PackingService, ShippingRepository
@@ -69,12 +68,6 @@ def main() -> int:
     # Heavy image/UI imports are deferred until launch. Import profiling showed these
     # dominated non-GUI module startup and they are unnecessary for CLI tooling.
     from app.modules.ai_engine import AIEngineClient, AIJobManager, AIResultHandler
-    from app.modules.artwork_studio import (
-        ArtworkStudioService,
-        ImageInspector,
-        ImageTransformer,
-        ThumbnailCache,
-    )
     from app.ui.application import MainWindow
     from app.ui.branding import application_icon
 
@@ -123,12 +116,6 @@ def main() -> int:
         ArtworkStorage(paths.artwork_directory, PreviewService()),
         authentication_service,
     )
-    artwork_studio_service = ArtworkStudioService(
-        artwork_service,
-        ImageTransformer(),
-        ImageInspector(),
-        ThumbnailCache(paths.local_storage_directory / "thumbnail_cache"),
-    )
     ai_job_manager = AIJobManager(
         AIEngineClient(settings.ai_engine_url, settings.ai_engine_api_key),
         AIResultHandler(artwork_service),
@@ -138,10 +125,6 @@ def main() -> int:
         GangSheetRepository(session_factory),
         artwork_service,
         paths.export_directory,
-        authentication_service,
-    )
-    production_service = ProductionService(
-        ProductionRepository(session_factory),
         authentication_service,
     )
     inventory_service = InventoryService(
@@ -192,10 +175,8 @@ def main() -> int:
         product_service=product_service,
         order_service=order_service,
         artwork_service=artwork_service,
-        artwork_studio_service=artwork_studio_service,
         ai_job_manager=ai_job_manager,
         gang_sheet_service=gang_sheet_service,
-        production_service=production_service,
         inventory_service=inventory_service,
         purchase_service=purchase_service,
         sales_service=sales_service,

@@ -9,6 +9,7 @@ from app.ui.components.dashboard import (
     RecentActivityWidget,
     apply_metrics,
 )
+from app.ui.components.glass_background import GlassApplicationBackground
 from app.ui.components.sidebar import (
     ANIMATION_DURATION_MS,
     COLLAPSED_WIDTH,
@@ -22,6 +23,7 @@ __all__ = [
     "COLLAPSED_WIDTH",
     "DashboardFilterBar",
     "EXPANDED_WIDTH",
+    "GlassApplicationBackground",
     "KpiCard",
     "LowStockWidget",
     "ProductionPipelineWidget",
