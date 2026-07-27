@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QAction
+from PySide6.QtCore import Qt, QRectF, Signal
+from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -27,16 +27,41 @@ from app.modules.authentication import (
 from app.ui.components.effects import apply_soft_shadow
 
 
+def _password_visibility_icon(visible: bool) -> QIcon:
+    """Draw an eye icon without relying on emoji fonts or external assets."""
+
+    pixmap = QPixmap(24, 24)
+    pixmap.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(pixmap)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    pen = QPen(QColor("#5B6584"), 1.8)
+    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    painter.setPen(pen)
+    painter.drawArc(QRectF(3.0, 6.0, 18.0, 12.0), 20 * 16, 140 * 16)
+    painter.drawArc(QRectF(3.0, 6.0, 18.0, 12.0), 200 * 16, 140 * 16)
+    painter.drawEllipse(QRectF(9.0, 9.0, 6.0, 6.0))
+    if visible:
+        pen.setWidthF(2.0)
+        painter.setPen(pen)
+        painter.drawLine(4, 4, 20, 20)
+    painter.end()
+    return QIcon(pixmap)
+
+
 def add_password_visibility_toggle(field: QLineEdit) -> QAction:
     """Add an accessible eye control to a password input."""
 
     action = QAction("👁", field)
+    action.setIcon(_password_visibility_icon(False))
+    action.setText("Show password")
     field.addAction(action, QLineEdit.ActionPosition.TrailingPosition)
     action.setCheckable(True)
     action.setToolTip("Show password")
 
     def toggle(visible: bool) -> None:
         field.setEchoMode(QLineEdit.EchoMode.Normal if visible else QLineEdit.EchoMode.Password)
+        action.setIcon(_password_visibility_icon(visible))
+        action.setText("Hide password" if visible else "Show password")
         action.setToolTip("Hide password" if visible else "Show password")
 
     action.toggled.connect(toggle)

@@ -71,6 +71,13 @@ class UserRepository:
             if user is not None:
                 user.last_login_at = timestamp
 
+    def update_password(self, user_id: int, password_hash: str) -> None:
+        with session_scope(self._session_factory) as session:
+            user = session.get(User, user_id)
+            if user is None:
+                raise ValueError("User does not exist")
+            user.password_hash = password_hash
+
 
 class RoleRepository:
     def __init__(self, session_factory: SessionFactory) -> None:
