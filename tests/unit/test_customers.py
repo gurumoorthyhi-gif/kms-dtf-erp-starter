@@ -74,6 +74,54 @@ def test_duplicate_code_is_rejected(customer_service) -> None:
         customer_service.create_customer(valid_customer("cus-001"))
 
 
+def test_customer_codes_use_delivery_prefix_and_shared_sequence(customer_service) -> None:
+    local = customer_service.create_customer(
+        replace(valid_customer(), code="", delivery_type="Local")
+    )
+    courier = customer_service.create_customer(
+        replace(
+            valid_customer(),
+            code="",
+            name="Courier Customer",
+            phone="9876543211",
+            delivery_type="Courier",
+        )
+    )
+
+    assert local.summary.code == "LO0001"
+    assert local.summary.delivery_type == "Local"
+    assert courier.summary.code == "CO0002"
+    assert courier.summary.delivery_type == "Courier"
+
+    changed = customer_service.update_customer(
+        local.summary.id,
+        replace(valid_customer(), code=local.summary.code, delivery_type="Courier"),
+    )
+    assert changed.summary.code == "CO0003"
+
+
+def test_other_transport_requires_and_stores_transport_name(customer_service) -> None:
+    with pytest.raises(CustomerValidationError, match="other transport name"):
+        customer_service.create_customer(
+            replace(
+                valid_customer(),
+                preferred_courier="OTHER TRANSPORT",
+                other_transport_name="",
+            )
+        )
+
+    created = customer_service.create_customer(
+        replace(
+            valid_customer(),
+            preferred_courier="OTHER TRANSPORT",
+            other_transport_name="KPN Travels",
+        )
+    )
+
+    assert created.summary.preferred_courier == "OTHER TRANSPORT"
+    assert created.summary.other_transport_name == "KPN Travels"
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [

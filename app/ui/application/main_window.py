@@ -129,6 +129,7 @@ class MainWindow(QMainWindow):
         self,
         authentication_service: AuthenticationService | None = None,
         dashboard_service: DashboardService | None = None,
+        initial_user: AuthenticatedUser | None = None,
         customer_service: CustomerService | None = None,
         product_service: ProductService | None = None,
         order_service: OrderService | None = None,
@@ -315,7 +316,9 @@ class MainWindow(QMainWindow):
 
         self.sidebar.navigation_requested.connect(self.navigate)
         self.top_bar.logout_requested.connect(self.logout)
-        if authentication_service is None:
+        if initial_user is not None:
+            self._complete_login(initial_user)
+        elif authentication_service is None:
             self.navigate("dashboard")
         else:
             self._show_login()

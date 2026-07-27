@@ -15,9 +15,9 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QScrollArea,
     QTableWidget,
     QTableWidgetItem,
-    QTabWidget,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -82,42 +82,134 @@ class CustomerFormDialog(QDialog):
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("Edit customer" if customer else "New customer")
-        self.resize(620, 720)
+        self.resize(1080, 650)
+        self.setMinimumSize(900, 580)
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(18, 18, 18, 14)
+        layout.setSpacing(14)
+        self._customer_code = customer.summary.code if customer else ""
 
+        columns = QHBoxLayout()
+        columns.setSpacing(18)
+        customer_panel = QFrame()
+        customer_panel.setObjectName("customerFormPanel")
+        customer_layout = QVBoxLayout(customer_panel)
+        customer_layout.setContentsMargins(16, 14, 16, 14)
+        customer_title = QLabel("Customer details")
+        customer_title.setObjectName("detailsTitle")
+        customer_layout.addWidget(customer_title)
         form = QFormLayout()
-        self.code = QLineEdit()
+        form.setVerticalSpacing(10)
         self.name = QLineEdit()
         self.business_name = QLineEdit()
         self.phone = QLineEdit()
         self.whatsapp = QLineEdit()
+        self.delivery_type = QComboBox()
+        self.delivery_type.addItems(("Courier", "Local"))
+        self.preferred_courier = QComboBox()
+        self.preferred_courier.addItem("Select preferred courier", "")
+        self.preferred_courier.addItems(
+            ("ST", "PROFESSIONAL", "DTDC", "BUS", "TRAIN", "OTHER TRANSPORT")
+        )
+        self.other_transport_name = QLineEdit()
+        self.other_transport_name.setPlaceholderText("Enter transport name")
+        self.other_transport_name.setObjectName("customerInput")
+        self.other_transport_name.setVisible(False)
+        self.preferred_courier.currentTextChanged.connect(
+            lambda value: self.other_transport_name.setVisible(value == "OTHER TRANSPORT")
+        )
         self.email = QLineEdit()
         self.gst = QLineEdit()
         for label, field in (
-            ("Customer code *", self.code),
             ("Customer name *", self.name),
             ("Business name", self.business_name),
             ("Phone *", self.phone),
-            ("WhatsApp number", self.whatsapp),
             ("Email", self.email),
             ("GST number", self.gst),
         ):
             field.setObjectName("customerInput")
             form.addRow(label, field)
-        layout.addLayout(form)
-
-        tabs = QTabWidget()
-        self.billing = AddressEditor()
-        self.shipping = AddressEditor()
-        tabs.addTab(self.billing, "Billing address")
-        tabs.addTab(self.shipping, "Shipping address")
-        layout.addWidget(tabs)
+        whatsapp_row = QWidget()
+        whatsapp_layout = QHBoxLayout(whatsapp_row)
+        whatsapp_layout.setContentsMargins(0, 0, 0, 0)
+        self.whatsapp.setObjectName("customerInput")
+        self.same_as_phone_button = QPushButton("Same as phone")
+        self.same_as_phone_button.setObjectName("secondaryButton")
+        self.same_as_phone_button.clicked.connect(
+            lambda: self.whatsapp.setText(self.phone.text())
+        )
+        whatsapp_layout.addWidget(self.whatsapp, 1)
+        whatsapp_layout.addWidget(self.same_as_phone_button)
+        form.addRow("WhatsApp number", whatsapp_row)
+        form.addRow("Delivery type", self.delivery_type)
+        form.addRow("Preferred courier *", self.preferred_courier)
+        form.addRow("Other transport name *", self.other_transport_name)
+        self._preferred_courier_label = form.labelForField(self.preferred_courier)
+        self._other_transport_label = form.labelForField(self.other_transport_name)
+        if self._other_transport_label is not None:
+            self._other_transport_label.setVisible(False)
+            self.preferred_courier.currentTextChanged.connect(
+                lambda value: self._other_transport_label.setVisible(
+                    self.delivery_type.currentText() == "Courier"
+                    and value == "OTHER TRANSPORT"
+                )
+            )
+        self.delivery_type.currentTextChanged.connect(self._update_courier_fields)
+        customer_layout.addLayout(form)
 
         self.notes = QTextEdit()
         self.notes.setObjectName("customerNotes")
         self.notes.setPlaceholderText("Customer notes")
-        self.notes.setMaximumHeight(90)
-        layout.addWidget(self.notes)
+        self.notes.setMaximumHeight(88)
+        customer_layout.addWidget(QLabel("Notes"))
+        customer_layout.addWidget(self.notes)
+        customer_layout.addStretch()
+
+        address_panel = QFrame()
+        address_panel.setObjectName("customerFormPanel")
+        address_layout = QVBoxLayout(address_panel)
+        address_layout.setContentsMargins(16, 14, 16, 14)
+        address_title = QLabel("Billing and shipping details")
+        address_title.setObjectName("detailsTitle")
+        address_layout.addWidget(address_title)
+
+        address_scroll = QScrollArea()
+        address_scroll.setWidgetResizable(True)
+        address_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        address_content = QWidget()
+        address_content_layout = QVBoxLayout(address_content)
+        address_content_layout.setContentsMargins(0, 0, 8, 0)
+        address_content_layout.setSpacing(12)
+
+        billing_title = QLabel("Billing address")
+        billing_title.setObjectName("sectionTitle")
+        self.billing = AddressEditor()
+        self.shipping = AddressEditor()
+        address_content_layout.addWidget(billing_title)
+        address_content_layout.addWidget(self.billing)
+
+        shipping_heading = QWidget()
+        shipping_heading_layout = QHBoxLayout(shipping_heading)
+        shipping_heading_layout.setContentsMargins(0, 0, 0, 0)
+        shipping_title = QLabel("Shipping address")
+        shipping_title.setObjectName("sectionTitle")
+        self.same_as_billing_button = QPushButton("Same as billing address")
+        self.same_as_billing_button.setObjectName("secondaryButton")
+        self.same_as_billing_button.clicked.connect(
+            lambda: self.shipping.set_value(self.billing.value())
+        )
+        shipping_heading_layout.addWidget(shipping_title)
+        shipping_heading_layout.addStretch()
+        shipping_heading_layout.addWidget(self.same_as_billing_button)
+        address_content_layout.addWidget(shipping_heading)
+        address_content_layout.addWidget(self.shipping)
+        address_content_layout.addStretch()
+        address_scroll.setWidget(address_content)
+        address_layout.addWidget(address_scroll, 1)
+
+        columns.addWidget(customer_panel, 1)
+        columns.addWidget(address_panel, 1)
+        layout.addLayout(columns, 1)
 
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
@@ -128,14 +220,26 @@ class CustomerFormDialog(QDialog):
 
         if customer is not None:
             self._load(customer)
+        self._update_courier_fields()
 
     def customer_input(self) -> CustomerInput:
         return CustomerInput(
-            code=self.code.text(),
             name=self.name.text(),
             phone=self.phone.text(),
+            code=self._customer_code,
             business_name=self.business_name.text(),
             whatsapp_number=self.whatsapp.text(),
+            delivery_type=self.delivery_type.currentText(),
+            preferred_courier=(
+                self.preferred_courier.currentData() or self.preferred_courier.currentText()
+                if self.delivery_type.currentText() == "Courier"
+                else ""
+            ),
+            other_transport_name=(
+                self.other_transport_name.text()
+                if self.delivery_type.currentText() == "Courier"
+                else ""
+            ),
             email=self.email.text() or None,
             gst_number=self.gst.text(),
             billing_address=self.billing.value(),
@@ -145,22 +249,36 @@ class CustomerFormDialog(QDialog):
 
     def _load(self, customer: CustomerDetails) -> None:
         summary = customer.summary
-        self.code.setText(summary.code)
         self.name.setText(summary.name)
         self.business_name.setText(summary.business_name)
         self.phone.setText(summary.phone)
         self.whatsapp.setText(customer.whatsapp_number)
+        self.delivery_type.setCurrentText(summary.delivery_type)
+        self.preferred_courier.setCurrentText(summary.preferred_courier)
+        self.other_transport_name.setText(summary.other_transport_name)
         self.email.setText(summary.email or "")
         self.gst.setText(customer.gst_number)
         self.billing.set_value(customer.billing_address)
         self.shipping.set_value(customer.shipping_address)
         self.notes.setPlainText(customer.notes)
 
+    def _update_courier_fields(self) -> None:
+        courier_selected = self.delivery_type.currentText() == "Courier"
+        self.preferred_courier.setVisible(courier_selected)
+        if self._preferred_courier_label is not None:
+            self._preferred_courier_label.setVisible(courier_selected)
+        show_other = (
+            courier_selected and self.preferred_courier.currentText() == "OTHER TRANSPORT"
+        )
+        self.other_transport_name.setVisible(show_other)
+        if self._other_transport_label is not None:
+            self._other_transport_label.setVisible(show_other)
+
 
 class CustomerDetailsDialog(QDialog):
     def __init__(self, customer: CustomerDetails, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setWindowTitle(f"Customer · {customer.summary.code}")
+        self.setWindowTitle(f"Customer · {customer.summary.name}")
         self.resize(520, 520)
         layout = QVBoxLayout(self)
         summary = customer.summary
@@ -169,10 +287,11 @@ class CustomerDetailsDialog(QDialog):
         layout.addWidget(title)
         form = QFormLayout()
         for label, value in (
-            ("Code", summary.code),
             ("Business", summary.business_name or "—"),
             ("Phone", summary.phone),
             ("WhatsApp", customer.whatsapp_number or "—"),
+            ("Delivery type", summary.delivery_type),
+            ("Preferred courier", _preferred_courier_text(summary)),
             ("Email", summary.email or "—"),
             ("GST", customer.gst_number or "—"),
             ("Status", "Active" if summary.is_active else "Inactive"),
@@ -213,7 +332,7 @@ class CustomersPage(QWidget):
         toolbar_layout = QHBoxLayout(toolbar)
         self.search_input = QLineEdit()
         self.search_input.setObjectName("customerSearch")
-        self.search_input.setPlaceholderText("Search code, name, business, or phone")
+        self.search_input.setPlaceholderText("Search name, business, or phone")
         self.status_filter = QComboBox()
         self.status_filter.addItem("Active", True)
         self.status_filter.addItem("Inactive", False)
@@ -228,7 +347,14 @@ class CustomersPage(QWidget):
         self.table = QTableWidget(0, 6)
         self.table.setObjectName("customerTable")
         self.table.setHorizontalHeaderLabels(
-            ["Code", "Customer", "Business", "Phone", "Email", "Status"]
+            [
+                "Customer No.",
+                "Customer Name",
+                "Business",
+                "Phone",
+                "Preferred Courier",
+                "Details",
+            ]
         )
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -276,11 +402,14 @@ class CustomersPage(QWidget):
                 customer.name,
                 customer.business_name,
                 customer.phone,
-                customer.email or "",
-                "Active" if customer.is_active else "Inactive",
+                _preferred_courier_text(customer),
             )
             for column, value in enumerate(values):
                 self.table.setItem(row, column, QTableWidgetItem(value))
+            details_button = QPushButton("Details")
+            details_button.setObjectName("secondaryButton")
+            details_button.setProperty("customerId", customer.id)
+            self.table.setCellWidget(row, 5, details_button)
         self.empty_label.setVisible(not customers)
 
     def selected_customer_id(self) -> int | None:
@@ -337,3 +466,9 @@ def _format_address(address: AddressInput) -> str:
         )
         or "—"
     )
+
+
+def _preferred_courier_text(customer) -> str:
+    if customer.preferred_courier == "OTHER TRANSPORT":
+        return customer.other_transport_name or "OTHER TRANSPORT"
+    return customer.preferred_courier

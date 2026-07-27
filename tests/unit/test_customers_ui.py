@@ -15,6 +15,10 @@ class FakeCustomerService:
                 name="Customer One",
                 business_name="Business One",
                 phone="9876543210",
+                whatsapp_number="9876543210",
+                delivery_type="Courier",
+                preferred_courier="DTDC",
+                other_transport_name="",
                 email="one@example.com",
                 is_active=True,
             )
@@ -28,6 +32,9 @@ def test_customer_page_loads_and_filters_service_data(qtbot) -> None:
 
     assert page.table.rowCount() == 1
     assert page.table.item(0, 0).text() == "CUS-001"
+    assert page.table.item(0, 1).text() == "Customer One"
+    assert page.table.item(0, 4).text() == "DTDC"
+    assert page.table.cellWidget(0, 5).text() == "Details"
 
     page.search_input.setText("Business")
 
@@ -37,12 +44,37 @@ def test_customer_page_loads_and_filters_service_data(qtbot) -> None:
 def test_customer_form_builds_typed_input(qtbot) -> None:
     dialog = CustomerFormDialog()
     qtbot.addWidget(dialog)
-    dialog.code.setText("CUS-002")
     dialog.name.setText("Customer Two")
     dialog.phone.setText("9876543210")
+    dialog.same_as_phone_button.click()
+    dialog.billing.city.setText("Chennai")
+    dialog.same_as_billing_button.click()
+    dialog.preferred_courier.setCurrentText("OTHER TRANSPORT")
+    dialog.other_transport_name.setText("KPN Travels")
 
     data = dialog.customer_input()
 
-    assert data.code == "CUS-002"
+    assert data.code == ""
     assert data.name == "Customer Two"
+    assert data.whatsapp_number == "9876543210"
+    assert data.delivery_type == "Courier"
+    assert data.preferred_courier == "OTHER TRANSPORT"
+    assert data.other_transport_name == "KPN Travels"
     assert data.billing_address.country == "India"
+    assert data.shipping_address.city == "Chennai"
+
+
+def test_local_delivery_hides_and_clears_courier_fields(qtbot) -> None:
+    dialog = CustomerFormDialog()
+    qtbot.addWidget(dialog)
+    dialog.name.setText("Local Customer")
+    dialog.phone.setText("9876543210")
+    dialog.preferred_courier.setCurrentText("DTDC")
+
+    dialog.delivery_type.setCurrentText("Local")
+    data = dialog.customer_input()
+
+    assert dialog.preferred_courier.isHidden()
+    assert dialog.other_transport_name.isHidden()
+    assert data.preferred_courier == ""
+    assert data.other_transport_name == ""

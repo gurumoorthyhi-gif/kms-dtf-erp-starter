@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 from pathlib import Path, PurePosixPath
 
 from app.modules.authentication import AuthenticationService
@@ -18,6 +19,9 @@ from app.modules.customers.schemas import (
 CODE_PATTERN = re.compile(r"^[A-Z0-9][A-Z0-9-]{1,29}$")
 EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 GST_PATTERN = re.compile(r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][A-Z0-9]Z[A-Z0-9]$")
+PREFERRED_COURIERS = frozenset(
+    {"ST", "PROFESSIONAL", "DTDC", "BUS", "TRAIN", "OTHER TRANSPORT"}
+)
 
 
 class CustomerValidationError(ValueError):
@@ -58,6 +62,9 @@ class CustomerService:
 
     def create_customer(self, data: CustomerInput) -> CustomerDetails:
         self._require("customers.manage")
+        if not data.code.strip():
+            delivery_type = data.delivery_type.strip().title()
+            data = replace(data, code=self._repository.next_code(delivery_type))
         normalized = self._validate(data)
         if self._repository.get_by_code(normalized.code) is not None:
             raise DuplicateCustomerCodeError(f"Customer code already exists: {normalized.code}")
@@ -65,6 +72,13 @@ class CustomerService:
 
     def update_customer(self, customer_id: int, data: CustomerInput) -> CustomerDetails:
         self._require("customers.manage")
+        current = self._repository.get(customer_id)
+        if current is None:
+            raise CustomerNotFoundError(f"Customer not found: {customer_id}")
+        delivery_type = data.delivery_type.strip().title()
+        expected_prefix = "LO" if delivery_type == "Local" else "CO"
+        if not data.code.startswith(expected_prefix):
+            data = replace(data, code=self._repository.next_code(delivery_type))
         normalized = self._validate(data)
         existing = self._repository.get_by_code(normalized.code)
         if existing is not None and existing.id != customer_id:
@@ -104,6 +118,9 @@ class CustomerService:
         whatsapp = CustomerService._phone(data.whatsapp_number, required=False)
         email = data.email.strip().casefold() if data.email else None
         gst = data.gst_number.strip().upper()
+        delivery_type = data.delivery_type.strip().title()
+        preferred_courier = data.preferred_courier.strip().upper()
+        other_transport_name = data.other_transport_name.strip()
         if not CODE_PATTERN.fullmatch(code):
             raise CustomerValidationError("Customer code must be 2-30 letters, numbers, or hyphens")
         if not name:
@@ -112,12 +129,26 @@ class CustomerService:
             raise CustomerValidationError("Email address is invalid")
         if gst and not GST_PATTERN.fullmatch(gst):
             raise CustomerValidationError("GST number is invalid")
+        if delivery_type not in {"Courier", "Local"}:
+            raise CustomerValidationError("Delivery type must be Courier or Local")
+        if delivery_type == "Local":
+            preferred_courier = ""
+            other_transport_name = ""
+        elif preferred_courier not in PREFERRED_COURIERS:
+            raise CustomerValidationError("Select a valid preferred courier")
+        if preferred_courier == "OTHER TRANSPORT" and not other_transport_name:
+            raise CustomerValidationError("Enter the other transport name")
+        if preferred_courier != "OTHER TRANSPORT":
+            other_transport_name = ""
         return CustomerInput(
-            code=code,
             name=name,
             phone=phone,
+            code=code,
             business_name=data.business_name.strip(),
             whatsapp_number=whatsapp,
+            delivery_type=delivery_type,
+            preferred_courier=preferred_courier,
+            other_transport_name=other_transport_name,
             email=email,
             gst_number=gst,
             billing_address=CustomerService._address(data.billing_address),
@@ -153,6 +184,10 @@ class CustomerService:
             name=customer.name,
             business_name=customer.business_name,
             phone=customer.phone,
+            whatsapp_number=customer.whatsapp_number,
+            delivery_type=customer.delivery_type,
+            preferred_courier=customer.preferred_courier,
+            other_transport_name=customer.other_transport_name,
             email=customer.email,
             is_active=customer.is_active,
         )

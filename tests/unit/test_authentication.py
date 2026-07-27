@@ -165,3 +165,17 @@ def test_all_initial_roles_are_seeded(authentication_context) -> None:
             "Viewer",
         }
     )
+
+
+def test_development_session_is_full_access_and_not_persisted(authentication_context) -> None:
+    service, users, _, _ = authentication_context
+
+    user = service.start_development_session()
+
+    assert service.current_session.user == user
+    assert user.username == "developer"
+    assert user.id is None
+    assert "customers.manage" in user.permissions
+    assert "settings.manage" in user.permissions
+    assert users.get_by_username("developer") is None
+    assert service.can_create_initial_administrator() is True

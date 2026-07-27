@@ -130,6 +130,26 @@ def test_main_window_login_and_logout_flow(qtbot, authentication_service) -> Non
     assert authentication_service.current_session.is_authenticated is False
 
 
+def test_main_window_skips_login_for_development_session(qtbot, authentication_service) -> None:
+    dashboard_service = DashboardService(
+        EmptyDashboardRepository(),
+        authentication_service,
+    )
+    development_user = authentication_service.start_development_session()
+    window = MainWindow(
+        authentication_service,
+        dashboard_service,
+        initial_user=development_user,
+    )
+    qtbot.addWidget(window)
+    window.show()
+
+    assert window.router.current_page_name == "dashboard"
+    assert window.sidebar.isVisible()
+    assert window.top_bar.isVisible()
+    assert authentication_service.current_session.user == development_user
+
+
 def test_create_administrator_dialog_collects_admin_details(qtbot, tmp_path: Path) -> None:
     engine = create_database_engine(f"sqlite:///{tmp_path / 'first-run.db'}")
     Base.metadata.create_all(engine)

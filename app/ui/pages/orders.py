@@ -54,7 +54,7 @@ class OrderCreationDialog(QDialog):
         form = QFormLayout()
         self.customer = QComboBox()
         for customer in customer_service.list_customers():
-            self.customer.addItem(f"{customer.code} - {customer.name}", customer.id)
+            self.customer.addItem(customer.name, customer.id)
         self.priority = QComboBox()
         self.priority.addItems(PRIORITIES)
         self.priority.setCurrentText("Normal")

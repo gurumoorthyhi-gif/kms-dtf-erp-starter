@@ -32,6 +32,26 @@ class CustomerRepository:
         with session_scope(self._session_factory) as session:
             return session.scalar(select(Customer).where(Customer.code == code))
 
+    def next_code(self, delivery_type: str) -> str:
+        """Return the next shared four-digit customer sequence with a type prefix."""
+
+        prefix = "LO" if delivery_type == "Local" else "CO"
+        with session_scope(self._session_factory) as session:
+            codes = session.scalars(
+                select(Customer.code).where(
+                    Customer.code.like("LO____") | Customer.code.like("CO____")
+                )
+            )
+            serials = [
+                int(code[-4:])
+                for code in codes
+                if len(code) == 6 and code[-4:].isdigit()
+            ]
+        serial = max(serials, default=0) + 1
+        if serial > 9999:
+            raise ValueError("Customer serial number limit has been reached")
+        return f"{prefix}{serial:04d}"
+
     def search(
         self,
         query: str = "",
@@ -62,6 +82,9 @@ class CustomerRepository:
                 business_name=data.business_name,
                 phone=data.phone,
                 whatsapp_number=data.whatsapp_number,
+                delivery_type=data.delivery_type,
+                preferred_courier=data.preferred_courier,
+                other_transport_name=data.other_transport_name,
                 email=data.email,
                 gst_number=data.gst_number,
                 notes=data.notes,
@@ -89,6 +112,9 @@ class CustomerRepository:
             customer.business_name = data.business_name
             customer.phone = data.phone
             customer.whatsapp_number = data.whatsapp_number
+            customer.delivery_type = data.delivery_type
+            customer.preferred_courier = data.preferred_courier
+            customer.other_transport_name = data.other_transport_name
             customer.email = data.email
             customer.gst_number = data.gst_number
             customer.notes = data.notes

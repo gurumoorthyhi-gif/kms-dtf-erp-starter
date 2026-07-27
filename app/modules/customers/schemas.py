@@ -22,6 +22,9 @@ class CustomerInput:
     phone: str
     business_name: str = ""
     whatsapp_number: str = ""
+    delivery_type: str = "Courier"
+    preferred_courier: str = "ST"
+    other_transport_name: str = ""
     email: str | None = None
     gst_number: str = ""
     billing_address: AddressInput = AddressInput()
@@ -36,6 +39,10 @@ class CustomerSummary:
     name: str
     business_name: str
     phone: str
+    whatsapp_number: str
+    delivery_type: str
+    preferred_courier: str
+    other_transport_name: str
     email: str | None
     is_active: bool
 

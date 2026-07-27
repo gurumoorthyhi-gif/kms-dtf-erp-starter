@@ -94,6 +94,11 @@ def main() -> int:
         CurrentUserSession(),
     )
     authentication_service.seed_roles_and_permissions()
+    development_user = (
+        authentication_service.start_development_session()
+        if settings.app_env.casefold() == "development"
+        else None
+    )
     dashboard_service = DashboardService(
         DashboardRepository(session_factory),
         authentication_service,
@@ -171,6 +176,7 @@ def main() -> int:
     window = MainWindow(
         authentication_service,
         dashboard_service,
+        initial_user=development_user,
         customer_service=customer_service,
         product_service=product_service,
         order_service=order_service,
@@ -189,7 +195,7 @@ def main() -> int:
         backup_service=backup_service,
         audit_service=audit_service,
     )
-    window.show()
+    window.showMaximized()
     try:
         return app.exec()
     finally:

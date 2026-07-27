@@ -50,8 +50,8 @@ ANIMATION_DURATION_MS = 200
 
 _MAIN_ITEMS: Sequence[tuple[str, str]] = (
     ("dashboard", "Dashboard"),
-    ("orders", "Orders"),
     ("customers", "Customers"),
+    ("orders", "Orders"),
     ("studio", "Artwork Studio"),
     ("inventory", "Inventory"),
     ("purchases", "Purchase"),
