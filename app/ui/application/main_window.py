@@ -26,6 +26,7 @@ from app.modules.products import ProductService
 from app.modules.sales import SalesService
 from app.modules.shipping import DispatchService, PackingService
 from app.ui.application.router import PageRouter
+from app.ui.branding import application_icon
 from app.ui.components import Sidebar, TopBar
 from app.ui.pages import (
     AIToolsPage,
@@ -110,6 +111,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self._authentication_service = authentication_service
         self.setWindowTitle("KMS DTF ERP")
+        self.setWindowIcon(application_icon())
         self.resize(1280, 800)
         self.setMinimumSize(1024, 680)
         self.setStyleSheet(APP_STYLESHEET)

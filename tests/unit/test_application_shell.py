@@ -49,6 +49,7 @@ def test_main_window_routes_placeholder_pages(qtbot) -> None:
     window = MainWindow()
     qtbot.addWidget(window)
 
+    assert window.windowIcon().isNull() is False
     assert window.router.current_page_name == "dashboard"
     assert window.top_bar.title == "Dashboard"
     assert window.sidebar.button_for("dashboard").property("active") is True

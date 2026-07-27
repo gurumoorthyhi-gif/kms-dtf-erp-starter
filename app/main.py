@@ -1,3 +1,4 @@
+import ctypes
 import sys
 
 from loguru import logger
@@ -55,6 +56,15 @@ def __getattr__(name: str):
     raise AttributeError(name)
 
 
+def _set_windows_app_id() -> None:
+    """Give Windows a stable identity for taskbar icon grouping."""
+
+    if sys.platform == "win32":
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(  # type: ignore[attr-defined]
+            "KMS.DTF.ERP"
+        )
+
+
 def main() -> int:
     # Heavy image/UI imports are deferred until launch. Import profiling showed these
     # dominated non-GUI module startup and they are unnecessary for CLI tooling.
@@ -66,6 +76,7 @@ def main() -> int:
         ThumbnailCache,
     )
     from app.ui.application import MainWindow
+    from app.ui.branding import application_icon
 
     install_global_exception_handler()
     settings = Settings.load()
@@ -171,7 +182,9 @@ def main() -> int:
     backup_service = BackupService(engine, session_factory, paths.backup_directory, cloud_service)
     audit_service = AuditService(session_factory)
 
+    _set_windows_app_id()
     app = QApplication(sys.argv)
+    app.setWindowIcon(application_icon())
     window = MainWindow(
         authentication_service,
         dashboard_service,

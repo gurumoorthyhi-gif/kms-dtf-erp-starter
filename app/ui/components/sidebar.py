@@ -9,6 +9,7 @@ from PySide6.QtCore import (
     QPropertyAnimation,
     QSize,
     Signal,
+    Qt,
 )
 from PySide6.QtGui import QEnterEvent
 from PySide6.QtWidgets import (
@@ -22,6 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.ui.branding import logo_pixmap
 from app.ui.components.effects import apply_soft_shadow
 from app.ui.icons import create_gradient_icon
 
@@ -94,7 +96,14 @@ class Sidebar(QFrame):
         brand_row = QHBoxLayout()
         brand_row.setContentsMargins(5, 0, 0, 14)
         brand_icon = QLabel()
-        brand_icon.setPixmap(create_gradient_icon("brand", 34).pixmap(34, 34))
+        brand_icon.setPixmap(
+            logo_pixmap().scaled(
+                38,
+                38,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+        )
         brand_icon.setFixedSize(38, 38)
         self._brand_name = QLabel("KMS DTF ERP")
         self._brand_name.setObjectName("brandName")
