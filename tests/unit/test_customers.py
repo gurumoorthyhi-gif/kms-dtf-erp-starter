@@ -1,4 +1,5 @@
 from dataclasses import replace
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -30,17 +31,21 @@ def valid_customer(code: str = "CUS-001") -> CustomerInput:
         business_name="KMS Textiles",
         phone="+91 98765-43210",
         whatsapp_number="9876543210",
+        preferred_rate=Decimal("35.50"),
         email="Owner@Example.com",
         gst_number="33ABCDE1234F1Z5",
         billing_address=AddressInput(
             line1="1 Market Road",
             city="Chennai",
+            landmark="Near Central Station",
+            district="Chennai",
             state="Tamil Nadu",
             postal_code="600001",
         ),
         shipping_address=AddressInput(
             line1="2 Factory Road",
             city="Chennai",
+            district="Chengalpattu",
             state="Tamil Nadu",
             postal_code="600002",
         ),
@@ -54,6 +59,10 @@ def test_create_search_edit_and_deactivate_customer(customer_service) -> None:
     assert created.summary.code == "CUS-001"
     assert created.summary.phone == "+919876543210"
     assert created.summary.email == "owner@example.com"
+    assert created.summary.preferred_rate == Decimal("35.50")
+    assert created.billing_address.district == "Chennai"
+    assert created.billing_address.landmark == "Near Central Station"
+    assert created.shipping_address.district == "Chengalpattu"
     assert customer_service.list_customers("textiles")[0].id == created.summary.id
 
     updated = customer_service.update_customer(
@@ -65,6 +74,14 @@ def test_create_search_edit_and_deactivate_customer(customer_service) -> None:
     customer_service.deactivate_customer(created.summary.id)
     assert customer_service.list_customers() == []
     assert customer_service.list_customers(active=False)[0].is_active is False
+
+
+def test_customer_can_be_permanently_deleted(customer_service) -> None:
+    created = customer_service.create_customer(valid_customer())
+
+    customer_service.delete_customer(created.summary.id)
+
+    assert customer_service.list_customers(active=None) == []
 
 
 def test_duplicate_code_is_rejected(customer_service) -> None:

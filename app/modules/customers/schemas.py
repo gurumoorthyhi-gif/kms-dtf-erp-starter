@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 
 
 @dataclass(frozen=True, slots=True)
@@ -10,6 +11,8 @@ class AddressInput:
     line1: str = ""
     line2: str = ""
     city: str = ""
+    landmark: str = ""
+    district: str = ""
     state: str = ""
     postal_code: str = ""
     country: str = "India"
@@ -25,6 +28,7 @@ class CustomerInput:
     delivery_type: str = "Courier"
     preferred_courier: str = "ST"
     other_transport_name: str = ""
+    preferred_rate: Decimal = Decimal("0.00")
     email: str | None = None
     gst_number: str = ""
     billing_address: AddressInput = AddressInput()
@@ -43,6 +47,7 @@ class CustomerSummary:
     delivery_type: str
     preferred_courier: str
     other_transport_name: str
+    preferred_rate: Decimal
     email: str | None
     is_active: bool
 

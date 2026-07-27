@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.base import Base
@@ -23,6 +24,7 @@ class Customer(Base):
     delivery_type: Mapped[str] = mapped_column(String(20), default="Courier")
     preferred_courier: Mapped[str] = mapped_column(String(30), default="ST")
     other_transport_name: Mapped[str] = mapped_column(String(120), default="")
+    preferred_rate: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=Decimal("0.00"))
     email: Mapped[str | None] = mapped_column(String(254), nullable=True)
     gst_number: Mapped[str] = mapped_column(String(15), default="")
     notes: Mapped[str] = mapped_column(Text, default="")
@@ -56,6 +58,8 @@ class CustomerAddress(Base):
     line1: Mapped[str] = mapped_column(String(200), default="")
     line2: Mapped[str] = mapped_column(String(200), default="")
     city: Mapped[str] = mapped_column(String(100), default="")
+    landmark: Mapped[str] = mapped_column(String(200), default="")
+    district: Mapped[str] = mapped_column(String(100), default="")
     state: Mapped[str] = mapped_column(String(100), default="")
     postal_code: Mapped[str] = mapped_column(String(20), default="")
     country: Mapped[str] = mapped_column(String(80), default="India")

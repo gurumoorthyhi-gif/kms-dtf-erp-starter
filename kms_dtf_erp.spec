@@ -1,6 +1,9 @@
 from PyInstaller.utils.hooks import collect_data_files
 
-datas = [("assets/kms_dtf_erp_logo.png", "assets")] + collect_data_files("alembic")
+datas = [
+    ("assets/kms_dtf_erp_logo.png", "assets"),
+    ("app/data/india_pincodes.csv", "app/data"),
+] + collect_data_files("alembic")
 
 a = Analysis(
     ["run.py"],

@@ -9,6 +9,7 @@ from app.modules.customers.schemas import (
     CustomerSummary,
 )
 from app.modules.customers.service import (
+    CustomerDeletionError,
     CustomerNotFoundError,
     CustomerService,
     CustomerValidationError,
@@ -20,6 +21,7 @@ __all__ = [
     "Customer",
     "CustomerAddress",
     "CustomerDetails",
+    "CustomerDeletionError",
     "CustomerFileReference",
     "CustomerInput",
     "CustomerNotFoundError",

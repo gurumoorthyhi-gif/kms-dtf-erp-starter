@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from decimal import Decimal
+
+from PySide6.QtCore import QRegularExpression, Qt
+from PySide6.QtGui import QDoubleValidator, QRegularExpressionValidator
 from PySide6.QtWidgets import (
     QComboBox,
+    QCompleter,
     QDialog,
     QDialogButtonBox,
     QFormLayout,
@@ -25,31 +29,91 @@ from PySide6.QtWidgets import (
 
 from app.modules.customers import (
     AddressInput,
+    CustomerDeletionError,
     CustomerDetails,
     CustomerInput,
     CustomerService,
     CustomerValidationError,
     DuplicateCustomerCodeError,
 )
+from app.modules.customers.pincode_lookup import lookup_pincode
 from app.ui.components.effects import apply_soft_shadow
+
+INDIA_STATES_AND_UNION_TERRITORIES = (
+    "Andaman and Nicobar Islands",
+    "Andhra Pradesh",
+    "Arunachal Pradesh",
+    "Assam",
+    "Bihar",
+    "Chandigarh",
+    "Chhattisgarh",
+    "Dadra and Nagar Haveli and Daman and Diu",
+    "Delhi",
+    "Goa",
+    "Gujarat",
+    "Haryana",
+    "Himachal Pradesh",
+    "Jammu and Kashmir",
+    "Jharkhand",
+    "Karnataka",
+    "Kerala",
+    "Ladakh",
+    "Lakshadweep",
+    "Madhya Pradesh",
+    "Maharashtra",
+    "Manipur",
+    "Meghalaya",
+    "Mizoram",
+    "Nagaland",
+    "Odisha",
+    "Puducherry",
+    "Punjab",
+    "Rajasthan",
+    "Sikkim",
+    "Tamil Nadu",
+    "Telangana",
+    "Tripura",
+    "Uttar Pradesh",
+    "Uttarakhand",
+    "West Bengal",
+)
 
 
 class AddressEditor(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         layout = QFormLayout(self)
-        self.line1 = QLineEdit()
-        self.line2 = QLineEdit()
-        self.city = QLineEdit()
-        self.state = QLineEdit()
+        self.door_number = QLineEdit()
+        self.street_name = QLineEdit()
+        self.village_city = QLineEdit()
+        self.landmark = QLineEdit()
+        self.district = QLineEdit()
+        self.state = QComboBox()
+        self.state.setEditable(True)
+        self.state.addItems(INDIA_STATES_AND_UNION_TERRITORIES)
+        self.state.setCurrentIndex(-1)
+        self.state.setPlaceholderText("Type to search state")
+        state_completer = QCompleter(INDIA_STATES_AND_UNION_TERRITORIES, self.state)
+        state_completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        state_completer.setFilterMode(Qt.MatchFlag.MatchStartsWith)
+        self.state.setCompleter(state_completer)
         self.postal_code = QLineEdit()
+        self.postal_code.setMaxLength(6)
+        self.postal_code.setValidator(
+            QRegularExpressionValidator(QRegularExpression(r"\d{0,6}"), self.postal_code)
+        )
+        self.postal_code.setPlaceholderText("Enter 6-digit pincode")
+        self.postal_code.textChanged.connect(self._autofill_from_pincode)
         self.country = QLineEdit("India")
+        self.country.setReadOnly(True)
         for label, field in (
-            ("Address line 1", self.line1),
-            ("Address line 2", self.line2),
-            ("City", self.city),
+            ("Door No.", self.door_number),
+            ("Street name", self.street_name),
+            ("Village / City", self.village_city),
+            ("Landmark", self.landmark),
+            ("Pincode", self.postal_code),
+            ("District", self.district),
             ("State", self.state),
-            ("Postal code", self.postal_code),
             ("Country", self.country),
         ):
             field.setObjectName("customerInput")
@@ -57,21 +121,32 @@ class AddressEditor(QWidget):
 
     def value(self) -> AddressInput:
         return AddressInput(
-            self.line1.text(),
-            self.line2.text(),
-            self.city.text(),
-            self.state.text(),
-            self.postal_code.text(),
-            self.country.text(),
+            line1=self.door_number.text(),
+            line2=self.street_name.text(),
+            city=self.village_city.text(),
+            landmark=self.landmark.text(),
+            district=self.district.text(),
+            state=self.state.currentText(),
+            postal_code=self.postal_code.text(),
+            country=self.country.text(),
         )
 
     def set_value(self, address: AddressInput) -> None:
-        self.line1.setText(address.line1)
-        self.line2.setText(address.line2)
-        self.city.setText(address.city)
-        self.state.setText(address.state)
+        self.door_number.setText(address.line1)
+        self.street_name.setText(address.line2)
+        self.village_city.setText(address.city)
+        self.landmark.setText(address.landmark)
+        self.district.setText(address.district)
+        self.state.setCurrentText(address.state)
         self.postal_code.setText(address.postal_code)
         self.country.setText(address.country)
+
+    def _autofill_from_pincode(self, pincode: str) -> None:
+        details = lookup_pincode(pincode)
+        if details is None:
+            return
+        self.district.setText(details.district)
+        self.state.setCurrentText(details.state)
 
 
 class CustomerFormDialog(QDialog):
@@ -120,12 +195,17 @@ class CustomerFormDialog(QDialog):
         )
         self.email = QLineEdit()
         self.gst = QLineEdit()
+        self.preferred_rate = QLineEdit("0.00")
+        rate_validator = QDoubleValidator(0.0, 9999999999.99, 2, self.preferred_rate)
+        rate_validator.setNotation(QDoubleValidator.Notation.StandardNotation)
+        self.preferred_rate.setValidator(rate_validator)
         for label, field in (
             ("Customer name *", self.name),
             ("Business name", self.business_name),
             ("Phone *", self.phone),
             ("Email", self.email),
             ("GST number", self.gst),
+            ("Preferred rate", self.preferred_rate),
         ):
             field.setObjectName("customerInput")
             form.addRow(label, field)
@@ -240,6 +320,7 @@ class CustomerFormDialog(QDialog):
                 if self.delivery_type.currentText() == "Courier"
                 else ""
             ),
+            preferred_rate=Decimal(self.preferred_rate.text() or "0.00"),
             email=self.email.text() or None,
             gst_number=self.gst.text(),
             billing_address=self.billing.value(),
@@ -256,6 +337,7 @@ class CustomerFormDialog(QDialog):
         self.delivery_type.setCurrentText(summary.delivery_type)
         self.preferred_courier.setCurrentText(summary.preferred_courier)
         self.other_transport_name.setText(summary.other_transport_name)
+        self.preferred_rate.setText(f"{summary.preferred_rate:.2f}")
         self.email.setText(summary.email or "")
         self.gst.setText(customer.gst_number)
         self.billing.set_value(customer.billing_address)
@@ -292,6 +374,7 @@ class CustomerDetailsDialog(QDialog):
             ("WhatsApp", customer.whatsapp_number or "—"),
             ("Delivery type", summary.delivery_type),
             ("Preferred courier", _preferred_courier_text(summary)),
+            ("Preferred rate", f"{summary.preferred_rate:.2f}"),
             ("Email", summary.email or "—"),
             ("GST", customer.gst_number or "—"),
             ("Status", "Active" if summary.is_active else "Inactive"),
@@ -364,7 +447,8 @@ class CustomersPage(QWidget):
         view_button = QPushButton("View")
         edit_button = QPushButton("Edit")
         deactivate_button = QPushButton("Deactivate")
-        for button in (view_button, edit_button, deactivate_button):
+        self.delete_button = QPushButton("Delete")
+        for button in (view_button, edit_button, deactivate_button, self.delete_button):
             button.setObjectName("secondaryButton")
             actions.addWidget(button)
         actions.addStretch()
@@ -384,6 +468,7 @@ class CustomersPage(QWidget):
         view_button.clicked.connect(self.view_selected)
         edit_button.clicked.connect(self.edit_selected)
         deactivate_button.clicked.connect(self.deactivate_selected)
+        self.delete_button.clicked.connect(self.delete_selected)
         self.table.doubleClicked.connect(self.view_selected)
         if auto_refresh:
             self.refresh()
@@ -441,6 +526,30 @@ class CustomersPage(QWidget):
             self._service.deactivate_customer(customer_id)
             self.refresh()
 
+    def delete_selected(self) -> None:
+        customer_id = self.selected_customer_id()
+        if customer_id is None:
+            return
+        customer = self._service.get_customer(customer_id)
+        answer = QMessageBox.question(
+            self,
+            "Delete customer",
+            (
+                f'Permanently delete "{customer.summary.name}" '
+                f"({customer.summary.code})?\n\nThis action cannot be undone."
+            ),
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            self._service.delete_customer(customer_id)
+        except CustomerDeletionError as error:
+            QMessageBox.warning(self, "Customer not deleted", str(error))
+            return
+        self.refresh()
+
     def _save(self, operation) -> None:
         try:
             operation()
@@ -458,6 +567,8 @@ def _format_address(address: AddressInput) -> str:
                 address.line1,
                 address.line2,
                 address.city,
+                address.landmark,
+                address.district,
                 address.state,
                 address.postal_code,
                 address.country,

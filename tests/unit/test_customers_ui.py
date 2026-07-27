@@ -1,3 +1,7 @@
+from decimal import Decimal
+
+from PySide6.QtCore import Qt
+
 from app.modules.customers import CustomerSummary
 from app.ui.pages import CustomerFormDialog, CustomersPage
 
@@ -19,6 +23,7 @@ class FakeCustomerService:
                 delivery_type="Courier",
                 preferred_courier="DTDC",
                 other_transport_name="",
+                preferred_rate=Decimal("125.50"),
                 email="one@example.com",
                 is_active=True,
             )
@@ -47,10 +52,14 @@ def test_customer_form_builds_typed_input(qtbot) -> None:
     dialog.name.setText("Customer Two")
     dialog.phone.setText("9876543210")
     dialog.same_as_phone_button.click()
-    dialog.billing.city.setText("Chennai")
+    dialog.billing.village_city.setText("Chennai")
+    dialog.billing.landmark.setText("Near Central Station")
+    dialog.billing.district.setText("Chennai")
+    dialog.billing.state.setCurrentText("Tamil Nadu")
     dialog.same_as_billing_button.click()
     dialog.preferred_courier.setCurrentText("OTHER TRANSPORT")
     dialog.other_transport_name.setText("KPN Travels")
+    dialog.preferred_rate.setText("42.75")
 
     data = dialog.customer_input()
 
@@ -60,8 +69,39 @@ def test_customer_form_builds_typed_input(qtbot) -> None:
     assert data.delivery_type == "Courier"
     assert data.preferred_courier == "OTHER TRANSPORT"
     assert data.other_transport_name == "KPN Travels"
+    assert data.preferred_rate == Decimal("42.75")
     assert data.billing_address.country == "India"
     assert data.shipping_address.city == "Chennai"
+    assert data.shipping_address.landmark == "Near Central Station"
+    assert data.shipping_address.district == "Chennai"
+    assert data.shipping_address.state == "Tamil Nadu"
+
+
+def test_address_state_field_provides_india_prefix_completion(qtbot) -> None:
+    dialog = CustomerFormDialog()
+    qtbot.addWidget(dialog)
+
+    states = [
+        dialog.billing.state.itemText(index)
+        for index in range(dialog.billing.state.count())
+    ]
+
+    assert dialog.billing.state.isEditable()
+    assert dialog.billing.state.completer().filterMode() == Qt.MatchFlag.MatchStartsWith
+    assert {"Tamil Nadu", "Telangana", "Tripura"} <= set(states)
+    assert dialog.billing.country.isReadOnly()
+
+
+def test_pincode_autofills_district_and_state_without_overwriting_locality(qtbot) -> None:
+    dialog = CustomerFormDialog()
+    qtbot.addWidget(dialog)
+    dialog.billing.village_city.setText("Sowcarpet")
+
+    dialog.billing.postal_code.setText("600001")
+
+    assert dialog.billing.village_city.text() == "Sowcarpet"
+    assert dialog.billing.district.text() == "Chennai"
+    assert dialog.billing.state.currentText() == "Tamil Nadu"
 
 
 def test_local_delivery_hides_and_clears_courier_fields(qtbot) -> None:

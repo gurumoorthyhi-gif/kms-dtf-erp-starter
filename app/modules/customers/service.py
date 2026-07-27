@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import re
 from dataclasses import replace
+from decimal import Decimal, InvalidOperation
 from pathlib import Path, PurePosixPath
+
+from sqlalchemy.exc import IntegrityError
 
 from app.modules.authentication import AuthenticationService
 from app.modules.customers.models import Customer
@@ -33,6 +36,10 @@ class CustomerNotFoundError(LookupError):
 
 
 class DuplicateCustomerCodeError(ValueError):
+    pass
+
+
+class CustomerDeletionError(ValueError):
     pass
 
 
@@ -93,6 +100,18 @@ class CustomerService:
         if not self._repository.deactivate(customer_id):
             raise CustomerNotFoundError(f"Customer not found: {customer_id}")
 
+    def delete_customer(self, customer_id: int) -> None:
+        self._require("customers.manage")
+        try:
+            deleted = self._repository.delete(customer_id)
+        except IntegrityError as error:
+            raise CustomerDeletionError(
+                "This customer has linked transactions and cannot be deleted. "
+                "Use Deactivate instead."
+            ) from error
+        if not deleted:
+            raise CustomerNotFoundError(f"Customer not found: {customer_id}")
+
     def add_file_reference(self, customer_id: int, label: str, stored_path: str) -> None:
         self._require("customers.manage")
         path = PurePosixPath(stored_path)
@@ -121,6 +140,10 @@ class CustomerService:
         delivery_type = data.delivery_type.strip().title()
         preferred_courier = data.preferred_courier.strip().upper()
         other_transport_name = data.other_transport_name.strip()
+        try:
+            preferred_rate = Decimal(str(data.preferred_rate)).quantize(Decimal("0.01"))
+        except (InvalidOperation, ValueError) as error:
+            raise CustomerValidationError("Preferred rate must be a valid amount") from error
         if not CODE_PATTERN.fullmatch(code):
             raise CustomerValidationError("Customer code must be 2-30 letters, numbers, or hyphens")
         if not name:
@@ -140,6 +163,8 @@ class CustomerService:
             raise CustomerValidationError("Enter the other transport name")
         if preferred_courier != "OTHER TRANSPORT":
             other_transport_name = ""
+        if preferred_rate < 0:
+            raise CustomerValidationError("Preferred rate cannot be negative")
         return CustomerInput(
             name=name,
             phone=phone,
@@ -149,6 +174,7 @@ class CustomerService:
             delivery_type=delivery_type,
             preferred_courier=preferred_courier,
             other_transport_name=other_transport_name,
+            preferred_rate=preferred_rate,
             email=email,
             gst_number=gst,
             billing_address=CustomerService._address(data.billing_address),
@@ -171,6 +197,8 @@ class CustomerService:
             line1=address.line1.strip(),
             line2=address.line2.strip(),
             city=address.city.strip(),
+            landmark=address.landmark.strip(),
+            district=address.district.strip(),
             state=address.state.strip(),
             postal_code=address.postal_code.strip(),
             country=address.country.strip() or "India",
@@ -188,6 +216,7 @@ class CustomerService:
             delivery_type=customer.delivery_type,
             preferred_courier=customer.preferred_courier,
             other_transport_name=customer.other_transport_name,
+            preferred_rate=customer.preferred_rate,
             email=customer.email,
             is_active=customer.is_active,
         )
@@ -202,12 +231,14 @@ class CustomerService:
                 AddressInput()
                 if value is None
                 else AddressInput(
-                    value.line1,
-                    value.line2,
-                    value.city,
-                    value.state,
-                    value.postal_code,
-                    value.country,
+                    line1=value.line1,
+                    line2=value.line2,
+                    city=value.city,
+                    landmark=value.landmark,
+                    district=value.district,
+                    state=value.state,
+                    postal_code=value.postal_code,
+                    country=value.country,
                 )
             )
 

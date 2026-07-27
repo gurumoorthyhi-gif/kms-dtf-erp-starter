@@ -85,6 +85,7 @@ class CustomerRepository:
                 delivery_type=data.delivery_type,
                 preferred_courier=data.preferred_courier,
                 other_transport_name=data.other_transport_name,
+                preferred_rate=data.preferred_rate,
                 email=data.email,
                 gst_number=data.gst_number,
                 notes=data.notes,
@@ -115,6 +116,7 @@ class CustomerRepository:
             customer.delivery_type = data.delivery_type
             customer.preferred_courier = data.preferred_courier
             customer.other_transport_name = data.other_transport_name
+            customer.preferred_rate = data.preferred_rate
             customer.email = data.email
             customer.gst_number = data.gst_number
             customer.notes = data.notes
@@ -137,6 +139,14 @@ class CustomerRepository:
             if customer is None:
                 return False
             customer.is_active = False
+            return True
+
+    def delete(self, customer_id: int) -> bool:
+        with session_scope(self._session_factory) as session:
+            customer = session.get(Customer, customer_id)
+            if customer is None:
+                return False
+            session.delete(customer)
             return True
 
     def add_file_reference(
@@ -171,6 +181,8 @@ class CustomerRepository:
             "line1": address.line1,
             "line2": address.line2,
             "city": address.city,
+            "landmark": address.landmark,
+            "district": address.district,
             "state": address.state,
             "postal_code": address.postal_code,
             "country": address.country,
