@@ -40,6 +40,7 @@ class CustomerInput:
 class CustomerSummary:
     id: int
     code: str
+    display_identifier: str
     name: str
     business_name: str
     phone: str

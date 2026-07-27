@@ -27,9 +27,19 @@ from app.modules.authentication import (
     RoleRepository,
     UserRepository,
 )
-from app.modules.cloud_storage import CloudStorageService, LocalStorageProvider
+from app.modules.cloud_storage import (
+    CloudStorageService,
+    LocalStorageProvider,
+    S3CompatibleProvider,
+    StorageConfigurationStore,
+)
 from app.modules.communications import CommunicationService, UnconfiguredProvider
-from app.modules.customers import CustomerRepository, CustomerService
+from app.modules.customers import (
+    CustomerRepository,
+    CustomerService,
+    CustomerSyncError,
+    GoogleCustomerSheetSync,
+)
 from app.modules.dashboard import DashboardRepository, DashboardService
 from app.modules.gang_sheets import GangSheetRepository, GangSheetService
 from app.modules.inventory import (
@@ -103,9 +113,17 @@ def main() -> int:
         DashboardRepository(session_factory),
         authentication_service,
     )
+    customer_repository = CustomerRepository(session_factory)
+    customer_sheet_sync = GoogleCustomerSheetSync(
+        customer_repository,
+        credentials_path=settings.google_oauth_credentials,
+        token_path=settings.google_oauth_token,
+        state_path=settings.google_drive_state,
+    )
     customer_service = CustomerService(
-        CustomerRepository(session_factory),
+        customer_repository,
         authentication_service,
+        customer_sheet_sync,
     )
     product_service = ProductService(
         ProductRepository(session_factory),
@@ -144,11 +162,32 @@ def main() -> int:
         SalesRepository(session_factory),
         authentication_service,
     )
+    storage_configuration_store = StorageConfigurationStore(
+        paths.local_storage_directory / "storage_settings.json"
+    )
+    storage_configuration, storage_secret = storage_configuration_store.load()
+    storage_provider = LocalStorageProvider(
+        paths.local_storage_directory / "cloud_provider"
+    )
+    if storage_configuration.is_configured and storage_secret:
+        try:
+            storage_provider = S3CompatibleProvider.for_backblaze(
+                endpoint_url=storage_configuration.endpoint_url,
+                key_id=storage_configuration.key_id,
+                application_key=storage_secret,
+                bucket=storage_configuration.bucket,
+            )
+        except Exception:
+            logger.exception("Backblaze configuration could not be loaded; using local queue")
     cloud_service = CloudStorageService(
         session_factory,
-        LocalStorageProvider(paths.local_storage_directory / "cloud_provider"),
+        storage_provider,
         paths.local_storage_directory / "cloud_cache",
     )
+    if storage_configuration.google_catalog_enabled and customer_sheet_sync.is_connected:
+        cloud_service.set_upload_completed_callback(
+            customer_sheet_sync.create_storage_catalog_entry
+        )
     whatsapp_service = CommunicationService(
         session_factory,
         "whatsapp",
@@ -173,6 +212,11 @@ def main() -> int:
     _set_windows_app_id()
     app = QApplication(sys.argv)
     app.setWindowIcon(application_icon())
+    if customer_sheet_sync is not None and customer_sheet_sync.is_connected:
+        try:
+            customer_service.sync_customer_sheet()
+        except CustomerSyncError:
+            logger.exception("Initial Google customer-sheet synchronization failed")
     window = MainWindow(
         authentication_service,
         dashboard_service,
@@ -194,6 +238,8 @@ def main() -> int:
         report_service=report_service,
         backup_service=backup_service,
         audit_service=audit_service,
+        storage_configuration_store=storage_configuration_store,
+        google_sync=customer_sheet_sync,
     )
     window.showMaximized()
     try:

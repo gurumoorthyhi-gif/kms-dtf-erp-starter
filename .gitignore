@@ -11,6 +11,7 @@ env/
 
 # Environment files
 .env
+.env.backend
 .env.local
 .env.production
 
@@ -51,6 +52,7 @@ htmlcov/
 # Runtime business data
 local_data/*
 !local_data/.gitkeep
+installer/google_oauth_client.json
 backups/*
 !backups/.gitkeep
 exports/*

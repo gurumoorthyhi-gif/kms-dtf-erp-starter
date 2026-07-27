@@ -30,6 +30,15 @@ class CloudStorageService:
         self.factory, self.provider = factory, provider
         self.cache_root = cache_root.resolve()
         self.cache_root.mkdir(parents=True, exist_ok=True)
+        self._upload_completed = None
+
+    def set_provider(self, provider: StorageProvider) -> None:
+        """Switch providers without discarding locally queued files."""
+
+        self.provider = provider
+
+    def set_upload_completed_callback(self, callback) -> None:
+        self._upload_completed = callback
 
     def queue_upload(self, source: Path, prefix: str) -> CloudFile:
         source = source.resolve()
@@ -72,6 +81,14 @@ class CloudStorageService:
             raise
         return destination
 
+    def access_url(self, cloud_file_id: int, *, expires_in: int = 900) -> str:
+        """Return a temporary provider URL after the caller's ERP permission check."""
+
+        record = self.get(cloud_file_id)
+        if record.transfer_state != "synced":
+            raise RuntimeError("The file has not finished uploading")
+        return self.provider.signed_download_url(record.object_key, expires_in)
+
     def synchronize(self, progress=None, max_retries: int = 3) -> int:
         if not self.provider.is_online():
             return 0
@@ -83,6 +100,17 @@ class CloudStorageService:
                 with Path(record.local_path).open("rb") as source:
                     self.provider.upload(record.object_key, source, progress)
                 self._state(record.id, "synced", "")
+                if self._upload_completed is not None and not record.google_drive_file_id:
+                    try:
+                        drive_file_id = self._upload_completed(record)
+                        if drive_file_id:
+                            self._google_file(record.id, drive_file_id)
+                    except Exception as error:
+                        self._state(
+                            record.id,
+                            "synced",
+                            f"Google Drive catalog pending: {error}",
+                        )
                 completed += 1
             except Exception as error:
                 self._state(record.id, "failed", str(error), increment=True)
@@ -111,3 +139,9 @@ class CloudStorageService:
             record.last_error = error
             if increment:
                 record.retry_count += 1
+
+    def _google_file(self, record_id: int, drive_file_id: str) -> None:
+        with session_scope(self.factory) as session:
+            record = session.get(CloudFile, record_id)
+            if record:
+                record.google_drive_file_id = drive_file_id

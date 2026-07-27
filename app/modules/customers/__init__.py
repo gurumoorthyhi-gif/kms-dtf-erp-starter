@@ -1,5 +1,9 @@
 """Customer management module."""
 
+from app.modules.customers.google_sheets import (
+    CustomerSyncError,
+    GoogleCustomerSheetSync,
+)
 from app.modules.customers.models import Customer, CustomerAddress, CustomerFileReference
 from app.modules.customers.repository import CustomerRepository
 from app.modules.customers.schemas import (
@@ -28,6 +32,8 @@ __all__ = [
     "CustomerRepository",
     "CustomerService",
     "CustomerSummary",
+    "CustomerSyncError",
     "CustomerValidationError",
     "DuplicateCustomerCodeError",
+    "GoogleCustomerSheetSync",
 ]

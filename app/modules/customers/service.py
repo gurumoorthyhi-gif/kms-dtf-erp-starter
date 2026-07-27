@@ -6,10 +6,12 @@ import re
 from dataclasses import replace
 from decimal import Decimal, InvalidOperation
 from pathlib import Path, PurePosixPath
+from typing import TYPE_CHECKING
 
 from sqlalchemy.exc import IntegrityError
 
 from app.modules.authentication import AuthenticationService
+from app.modules.customers.google_sheets import CustomerSyncError
 from app.modules.customers.models import Customer
 from app.modules.customers.repository import CustomerRepository
 from app.modules.customers.schemas import (
@@ -18,6 +20,9 @@ from app.modules.customers.schemas import (
     CustomerInput,
     CustomerSummary,
 )
+
+if TYPE_CHECKING:
+    from app.modules.customers.google_sheets import GoogleCustomerSheetSync
 
 CODE_PATTERN = re.compile(r"^[A-Z0-9][A-Z0-9-]{1,29}$")
 EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -48,9 +53,11 @@ class CustomerService:
         self,
         repository: CustomerRepository,
         authentication_service: AuthenticationService | None = None,
+        sheet_sync: GoogleCustomerSheetSync | None = None,
     ) -> None:
         self._repository = repository
         self._authentication_service = authentication_service
+        self._sheet_sync = sheet_sync
 
     def list_customers(
         self, query: str = "", *, active: bool | None = True
@@ -75,7 +82,9 @@ class CustomerService:
         normalized = self._validate(data)
         if self._repository.get_by_code(normalized.code) is not None:
             raise DuplicateCustomerCodeError(f"Customer code already exists: {normalized.code}")
-        return self._details(self._repository.create(normalized))
+        created = self._details(self._repository.create(normalized))
+        self.sync_customer_sheet()
+        return created
 
     def update_customer(self, customer_id: int, data: CustomerInput) -> CustomerDetails:
         self._require("customers.manage")
@@ -93,12 +102,15 @@ class CustomerService:
         customer = self._repository.update(customer_id, normalized)
         if customer is None:
             raise CustomerNotFoundError(f"Customer not found: {customer_id}")
-        return self._details(customer)
+        details = self._details(customer)
+        self.sync_customer_sheet()
+        return details
 
     def deactivate_customer(self, customer_id: int) -> None:
         self._require("customers.manage")
         if not self._repository.deactivate(customer_id):
             raise CustomerNotFoundError(f"Customer not found: {customer_id}")
+        self.sync_customer_sheet()
 
     def delete_customer(self, customer_id: int) -> None:
         self._require("customers.manage")
@@ -111,6 +123,28 @@ class CustomerService:
             ) from error
         if not deleted:
             raise CustomerNotFoundError(f"Customer not found: {customer_id}")
+        self.sync_customer_sheet()
+
+    def sync_customer_sheet(self) -> None:
+        if self._sheet_sync is not None:
+            self._sheet_sync.sync()
+
+    @property
+    def google_drive_available(self) -> bool:
+        return self._sheet_sync is not None
+
+    @property
+    def google_drive_connected(self) -> bool:
+        return self._sheet_sync is not None and self._sheet_sync.is_connected
+
+    @property
+    def customer_sheet_url(self) -> str | None:
+        return self._sheet_sync.spreadsheet_url if self._sheet_sync is not None else None
+
+    def connect_google_drive(self) -> str:
+        if self._sheet_sync is None:
+            raise CustomerSyncError("Google Drive integration is not available in this build.")
+        return self._sheet_sync.connect()
 
     def add_file_reference(self, customer_id: int, label: str, stored_path: str) -> None:
         self._require("customers.manage")
@@ -206,9 +240,24 @@ class CustomerService:
 
     @staticmethod
     def _summary(customer: Customer) -> CustomerSummary:
+        billing_address = next(
+            (
+                address
+                for address in customer.addresses
+                if address.address_type == "billing"
+            ),
+            None,
+        )
+        business = (customer.business_name or customer.name or "CUSTOMER").strip().upper()
+        district = (
+            billing_address.district
+            if billing_address is not None and billing_address.district
+            else "DISTRICT"
+        ).strip().upper()
         return CustomerSummary(
             id=customer.id,
             code=customer.code,
+            display_identifier=f"{customer.code} - {business} - {district}",
             name=customer.name,
             business_name=customer.business_name,
             phone=customer.phone,

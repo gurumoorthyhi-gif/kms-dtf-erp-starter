@@ -57,6 +57,7 @@ def test_create_search_edit_and_deactivate_customer(customer_service) -> None:
     created = customer_service.create_customer(valid_customer())
 
     assert created.summary.code == "CUS-001"
+    assert created.summary.display_identifier == "CUS-001 - KMS TEXTILES - CHENNAI"
     assert created.summary.phone == "+919876543210"
     assert created.summary.email == "owner@example.com"
     assert created.summary.preferred_rate == Decimal("35.50")
@@ -82,6 +83,36 @@ def test_customer_can_be_permanently_deleted(customer_service) -> None:
     customer_service.delete_customer(created.summary.id)
 
     assert customer_service.list_customers(active=None) == []
+
+
+def test_customer_mutations_trigger_configured_sheet_sync(tmp_path: Path) -> None:
+    class RecordingSheetSync:
+        def __init__(self) -> None:
+            self.sync_count = 0
+            self.is_connected = True
+            self.spreadsheet_url = "https://docs.google.com/spreadsheets/d/test/edit"
+
+        def sync(self) -> None:
+            self.sync_count += 1
+
+    engine = create_database_engine(f"sqlite:///{tmp_path / 'customer-sync.db'}")
+    Base.metadata.create_all(engine)
+    sync = RecordingSheetSync()
+    service = CustomerService(
+        CustomerRepository(create_session_factory(engine)),
+        sheet_sync=sync,  # type: ignore[arg-type]
+    )
+
+    created = service.create_customer(valid_customer())
+    service.update_customer(
+        created.summary.id,
+        replace(valid_customer(), name="Synced Customer"),
+    )
+    service.deactivate_customer(created.summary.id)
+    service.delete_customer(created.summary.id)
+
+    assert sync.sync_count == 4
+    engine.dispose()
 
 
 def test_duplicate_code_is_rejected(customer_service) -> None:

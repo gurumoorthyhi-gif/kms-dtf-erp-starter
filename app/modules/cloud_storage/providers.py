@@ -8,6 +8,7 @@ class StorageProvider(Protocol):
     def upload(self, object_key: str, source: BinaryIO, progress=None) -> None: ...
     def download(self, object_key: str, destination: BinaryIO, progress=None) -> None: ...
     def is_online(self) -> bool: ...
+    def signed_download_url(self, object_key: str, expires_in: int = 900) -> str: ...
 
 
 class LocalStorageProvider:
@@ -27,6 +28,10 @@ class LocalStorageProvider:
 
     def is_online(self) -> bool:
         return True
+
+    def signed_download_url(self, object_key: str, expires_in: int = 900) -> str:
+        del expires_in
+        return self._path(object_key).as_uri()
 
     def _path(self, key: str) -> Path:
         path = (self.root / Path(key)).resolve()
@@ -51,10 +56,45 @@ class S3CompatibleProvider:
 
     def is_online(self) -> bool:
         try:
-            self.client.head_bucket(Bucket=self.bucket)
+            # HeadBucket can require listAllBucketNames on Backblaze even when an
+            # application key is correctly restricted to this one bucket. Testing
+            # a one-item listing verifies the permissions the ERP actually needs.
+            self.client.list_objects_v2(Bucket=self.bucket, MaxKeys=1)
             return True
         except Exception:
             return False
+
+    def signed_download_url(self, object_key: str, expires_in: int = 900) -> str:
+        return self.client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": self.bucket, "Key": object_key},
+            ExpiresIn=max(60, min(expires_in, 604800)),
+        )
+
+    @classmethod
+    def for_backblaze(
+        cls,
+        *,
+        endpoint_url: str,
+        key_id: str,
+        application_key: str,
+        bucket: str,
+    ) -> "S3CompatibleProvider":
+        """Create a private Backblaze B2 provider through its S3-compatible API."""
+
+        if not all((endpoint_url, key_id, application_key, bucket)):
+            raise ValueError("Complete Backblaze connection details are required")
+        import boto3
+        from botocore.config import Config
+
+        client = boto3.client(
+            "s3",
+            endpoint_url=endpoint_url.rstrip("/"),
+            aws_access_key_id=key_id,
+            aws_secret_access_key=application_key,
+            config=Config(signature_version="s3v4"),
+        )
+        return cls(client, bucket)
 
 
 def _copy(source: BinaryIO, destination: BinaryIO, progress=None) -> None:

@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from PySide6.QtCore import QRegularExpression, Qt
-from PySide6.QtGui import QDoubleValidator, QRegularExpressionValidator
+from PySide6.QtCore import QRegularExpression, Qt, QUrl
+from PySide6.QtGui import QDesktopServices, QDoubleValidator, QRegularExpressionValidator
 from PySide6.QtWidgets import (
     QComboBox,
     QCompleter,
@@ -33,6 +33,7 @@ from app.modules.customers import (
     CustomerDetails,
     CustomerInput,
     CustomerService,
+    CustomerSyncError,
     CustomerValidationError,
     DuplicateCustomerCodeError,
 )
@@ -369,6 +370,7 @@ class CustomerDetailsDialog(QDialog):
         layout.addWidget(title)
         form = QFormLayout()
         for label, value in (
+            ("Customer No.", summary.display_identifier),
             ("Business", summary.business_name or "—"),
             ("Phone", summary.phone),
             ("WhatsApp", customer.whatsapp_number or "—"),
@@ -422,8 +424,15 @@ class CustomersPage(QWidget):
         self.status_filter.addItem("All", None)
         new_button = QPushButton("New customer")
         new_button.setObjectName("primaryButton")
+        self.google_drive_button = QPushButton()
+        self.google_drive_button.setObjectName("secondaryButton")
+        self.google_drive_button.setVisible(
+            bool(getattr(self._service, "google_drive_available", False))
+        )
+        self._update_google_drive_button()
         toolbar_layout.addWidget(self.search_input, 1)
         toolbar_layout.addWidget(self.status_filter)
+        toolbar_layout.addWidget(self.google_drive_button)
         toolbar_layout.addWidget(new_button)
         apply_soft_shadow(toolbar)
 
@@ -465,6 +474,7 @@ class CustomersPage(QWidget):
         self.search_input.textChanged.connect(self.refresh)
         self.status_filter.currentIndexChanged.connect(self.refresh)
         new_button.clicked.connect(self.create_customer)
+        self.google_drive_button.clicked.connect(self.connect_google_drive)
         view_button.clicked.connect(self.view_selected)
         edit_button.clicked.connect(self.edit_selected)
         deactivate_button.clicked.connect(self.deactivate_selected)
@@ -472,6 +482,43 @@ class CustomersPage(QWidget):
         self.table.doubleClicked.connect(self.view_selected)
         if auto_refresh:
             self.refresh()
+
+    def connect_google_drive(self) -> None:
+        if getattr(self._service, "google_drive_connected", False):
+            sheet_url = getattr(self._service, "customer_sheet_url", None)
+            if sheet_url:
+                QDesktopServices.openUrl(QUrl(sheet_url))
+            return
+        self.google_drive_button.setEnabled(False)
+        self.google_drive_button.setText("Connecting...")
+        try:
+            self._service.connect_google_drive()
+        except CustomerSyncError as error:
+            QMessageBox.warning(self, "Google Drive not connected", str(error))
+        else:
+            QMessageBox.information(
+                self,
+                "Google Drive connected",
+                (
+                    "Google Drive is connected.\n\n"
+                    "DTF ERP folders and the Customer Master Sheet were created "
+                    "automatically. Future customer changes will sync automatically."
+                ),
+            )
+        finally:
+            self.google_drive_button.setEnabled(True)
+            self._update_google_drive_button()
+
+    def _update_google_drive_button(self) -> None:
+        connected = bool(getattr(self._service, "google_drive_connected", False))
+        self.google_drive_button.setText(
+            "Google Drive Connected ✓" if connected else "Connect Google Drive"
+        )
+        self.google_drive_button.setToolTip(
+            "Open Customer Master Sheet"
+            if connected
+            else "Sign in with Gmail and create Drive folders automatically"
+        )
 
     def refresh(self) -> None:
         active = self.status_filter.currentData()
@@ -483,7 +530,7 @@ class CustomersPage(QWidget):
         self.table.setRowCount(len(customers))
         for row, customer in enumerate(customers):
             values = (
-                customer.code,
+                customer.display_identifier,
                 customer.name,
                 customer.business_name,
                 customer.phone,
@@ -523,7 +570,10 @@ class CustomersPage(QWidget):
     def deactivate_selected(self) -> None:
         customer_id = self.selected_customer_id()
         if customer_id is not None:
-            self._service.deactivate_customer(customer_id)
+            try:
+                self._service.deactivate_customer(customer_id)
+            except CustomerSyncError as error:
+                QMessageBox.warning(self, "Google sync failed", str(error))
             self.refresh()
 
     def delete_selected(self) -> None:
@@ -536,7 +586,7 @@ class CustomersPage(QWidget):
             "Delete customer",
             (
                 f'Permanently delete "{customer.summary.name}" '
-                f"({customer.summary.code})?\n\nThis action cannot be undone."
+                f"({customer.summary.display_identifier})?\n\nThis action cannot be undone."
             ),
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Cancel,
@@ -545,7 +595,7 @@ class CustomersPage(QWidget):
             return
         try:
             self._service.delete_customer(customer_id)
-        except CustomerDeletionError as error:
+        except (CustomerDeletionError, CustomerSyncError) as error:
             QMessageBox.warning(self, "Customer not deleted", str(error))
             return
         self.refresh()
@@ -556,6 +606,8 @@ class CustomersPage(QWidget):
         except (CustomerValidationError, DuplicateCustomerCodeError) as error:
             QMessageBox.warning(self, "Customer not saved", str(error))
             return
+        except CustomerSyncError as error:
+            QMessageBox.warning(self, "Google sync failed", str(error))
         self.refresh()
 
 

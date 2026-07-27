@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
 from app.modules.ai_engine import AIJobManager
 from app.modules.artwork import ArtworkService
 from app.modules.authentication import AuthenticatedUser, AuthenticationService
-from app.modules.cloud_storage import CloudStorageService
+from app.modules.cloud_storage import CloudStorageService, StorageConfigurationStore
 from app.modules.communications import CommunicationService
 from app.modules.customers import CustomerService
 from app.modules.dashboard import DashboardService
@@ -147,6 +147,8 @@ class MainWindow(QMainWindow):
         report_service: ReportService | None = None,
         backup_service: BackupService | None = None,
         audit_service: AuditService | None = None,
+        storage_configuration_store: StorageConfigurationStore | None = None,
+        google_sync=None,
     ) -> None:
         super().__init__()
         selected_theme = QSettings("KMS", "DTF ERP").value("ui/theme", "dark")
@@ -183,7 +185,14 @@ class MainWindow(QMainWindow):
         if customer_service is not None:
             self.customers_page = CustomersPage(customer_service, auto_refresh=False)
             self.router.register_page("customers", self.customers_page)
-        self.router.register_page("settings", SettingsPage())
+        self.router.register_page(
+            "settings",
+            SettingsPage(
+                cloud_storage_service,
+                storage_configuration_store,
+                google_sync,
+            ),
+        )
         self.sidebar.set_page_visible("customers", customer_service is not None)
         self.products_page: ProductsPage | None = None
         if product_service is not None:

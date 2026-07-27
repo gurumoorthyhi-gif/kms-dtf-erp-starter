@@ -3,6 +3,7 @@ from PyInstaller.utils.hooks import collect_data_files
 datas = [
     ("assets/kms_dtf_erp_logo.png", "assets"),
     ("app/data/india_pincodes.csv", "app/data"),
+    ("installer/google_oauth_client.json", "google"),
 ] + collect_data_files("alembic")
 
 a = Analysis(

@@ -16,6 +16,7 @@ class FakeCustomerService:
             CustomerSummary(
                 id=1,
                 code="CUS-001",
+                display_identifier="CUS-001 - BUSINESS ONE - CHENNAI",
                 name="Customer One",
                 business_name="Business One",
                 phone="9876543210",
@@ -36,7 +37,7 @@ def test_customer_page_loads_and_filters_service_data(qtbot) -> None:
     qtbot.addWidget(page)
 
     assert page.table.rowCount() == 1
-    assert page.table.item(0, 0).text() == "CUS-001"
+    assert page.table.item(0, 0).text() == "CUS-001 - BUSINESS ONE - CHENNAI"
     assert page.table.item(0, 1).text() == "Customer One"
     assert page.table.item(0, 4).text() == "DTDC"
     assert page.table.cellWidget(0, 5).text() == "Details"
