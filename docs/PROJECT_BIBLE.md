@@ -73,10 +73,11 @@ The required dependency direction is:
 - Transparent navigation icons with neon selected and hover states.
 - One reusable animated tooltip; the rail never expands and has no pin behavior.
 - Universal Google Drive button at the bottom-right of the application.
-- Customers page uses an in-page stack: customer list → customer file workspace →
-  Back to customers.
-- Customer workspace order is **Folder tree → Items → Preview** with adjustable
-  splitters.
+- **Open folder** launches a separate full-screen customer file window while the
+  Customers list remains open behind it.
+- File-window order is **Folder tree → Items → Preview** with adjustable
+  splitters. The folder panel navigates upward from dated folders to the customer
+  folder and then to the main Customers folder.
 - Images use Qt image decoding; PDFs use the embedded Qt PDF viewer.
 - Missing preview files download from Backblaze in the background.
 

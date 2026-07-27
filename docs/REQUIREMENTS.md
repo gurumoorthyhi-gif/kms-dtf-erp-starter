@@ -36,8 +36,10 @@ Status: current implemented baseline plus explicitly identified future work.
 
 ## 4. Customer file workspace
 
-- **Open folder** stays inside the Customers page.
-- **Back to customers** restores the existing list, search, and status filter.
+- **Open folder** launches a separate full-screen file window; the existing
+  customer list, search, and status filter remain preserved behind it.
+- The folder panel provides stepwise upward navigation: dated work folders →
+  customer folder → main Customers folder.
 - Adjustable pane order: Folder tree → Items → Preview.
 - Customer creation creates only the stable customer root.
 - A date hierarchy is created only through **Create today's folder**.

@@ -449,7 +449,7 @@ class _PreviewDownloadTask(QRunnable):
 
 
 class CustomerFolderDialog(QDialog):
-    """Browse a customer's dated Backblaze folders without leaving the ERP."""
+    """Browse a customer's dated Backblaze folders in a dedicated window."""
 
     back_requested = Signal()
 
@@ -467,6 +467,8 @@ class CustomerFolderDialog(QDialog):
             self.setWindowFlags(Qt.WindowType.Widget)
         self._service = service
         self._customer_id = customer_id
+        self._customer_label = ""
+        self._tree_level = "contents"
         self._file_ids: list[int] = []
         self._files_by_id = {}
         self._preview_file_id: int | None = None
@@ -476,6 +478,7 @@ class CustomerFolderDialog(QDialog):
         self._status_timer.setInterval(800)
         self._status_timer.timeout.connect(self.refresh_files)
         details = service.ensure_customer_storage(customer_id)
+        self._customer_label = details.summary.display_identifier
         self.setWindowTitle(f"Customer folder — {details.summary.display_identifier}")
         self.resize(1440, 900)
         if not embedded:
@@ -551,10 +554,23 @@ class CustomerFolderDialog(QDialog):
         browser_splitter = QSplitter(Qt.Orientation.Horizontal)
         self.browser_splitter = browser_splitter
         browser_splitter.setChildrenCollapsible(False)
+        tree_panel = QWidget()
+        self.tree_panel = tree_panel
+        tree_layout = QVBoxLayout(tree_panel)
+        tree_layout.setContentsMargins(0, 0, 0, 0)
+        tree_toolbar = QHBoxLayout()
+        self.tree_back_button = QPushButton("← Back")
+        self.tree_back_button.setObjectName("secondaryButton")
+        self.tree_location = QLabel()
+        self.tree_location.setObjectName("cardBody")
+        tree_toolbar.addWidget(self.tree_back_button)
+        tree_toolbar.addWidget(self.tree_location, 1)
+        tree_layout.addLayout(tree_toolbar)
         self.tree = QTreeWidget()
         self.tree.setHeaderLabel("Customer folders")
         self.tree.setMinimumWidth(220)
-        browser_splitter.addWidget(self.tree)
+        tree_layout.addWidget(self.tree, 1)
+        browser_splitter.addWidget(tree_panel)
 
         files_widget = QWidget()
         right = QVBoxLayout(files_widget)
@@ -592,6 +608,8 @@ class CustomerFolderDialog(QDialog):
         layout.addWidget(self.workspace_splitter, 1)
 
         self.tree.currentItemChanged.connect(self.refresh_files)
+        self.tree.itemActivated.connect(self._open_tree_item)
+        self.tree_back_button.clicked.connect(self._tree_back)
         self.table.itemSelectionChanged.connect(self._update_file_actions)
         self.table.itemSelectionChanged.connect(self.preview_selected)
         self.upload_button.clicked.connect(self.upload_file)
@@ -605,6 +623,25 @@ class CustomerFolderDialog(QDialog):
 
     def _populate_tree(self, selected_date: str | None = None) -> None:
         self.tree.clear()
+        if self._tree_level == "root":
+            self.tree_location.setText("Main customer folder")
+            self.tree_back_button.setEnabled(False)
+            root_item = QTreeWidgetItem(["Customers"])
+            root_item.setData(0, Qt.ItemDataRole.UserRole, ("navigate", "customers", ""))
+            self.tree.addTopLevelItem(root_item)
+            self._clear_file_view()
+            return
+        if self._tree_level == "customers":
+            self.tree_location.setText("Customers")
+            self.tree_back_button.setEnabled(True)
+            customer_item = QTreeWidgetItem([self._customer_label])
+            customer_item.setData(0, Qt.ItemDataRole.UserRole, ("navigate", "contents", ""))
+            self.tree.addTopLevelItem(customer_item)
+            self._clear_file_view()
+            return
+        self.tree_location.setText(self._customer_label)
+        self.tree_back_button.setEnabled(True)
+        self.create_today_button.setEnabled(True)
         selected_item = None
         for date_name in self._service.customer_storage_dates(self._customer_id):
             date_item = QTreeWidgetItem([date_name])
@@ -634,6 +671,30 @@ class CustomerFolderDialog(QDialog):
             self._show_preview_message(
                 "No date folders yet.\nSelect Create today's folder when work begins."
             )
+
+    def _tree_back(self) -> None:
+        if self._tree_level == "contents":
+            self._tree_level = "customers"
+        elif self._tree_level == "customers":
+            self._tree_level = "root"
+        self._populate_tree()
+
+    def _open_tree_item(self, item: QTreeWidgetItem, _column: int) -> None:
+        value = item.data(0, Qt.ItemDataRole.UserRole)
+        if not value or value[0] != "navigate":
+            return
+        self._tree_level = value[1]
+        self._populate_tree()
+
+    def _clear_file_view(self) -> None:
+        self.table.setRowCount(0)
+        self._file_ids = []
+        self._files_by_id = {}
+        self.upload_button.setEnabled(False)
+        self.create_today_button.setEnabled(False)
+        self._update_file_actions()
+        self.preview_name.setText("No file selected")
+        self._show_preview_message("Open the customer folder and select a file to preview")
 
     def create_today_folder(self) -> None:
         try:
@@ -965,24 +1026,27 @@ class CustomersPage(QWidget):
                 self._service,
                 customer_id,
                 self,
-                embedded=True,
             )
         except Exception as error:
             QMessageBox.warning(self, "Customer folder unavailable", str(error))
             return
         if self._folder_workspace is not None:
-            self.page_stack.removeWidget(self._folder_workspace)
-            self._folder_workspace.deleteLater()
+            self._folder_workspace.close()
         self._folder_workspace = workspace
-        workspace.back_requested.connect(self.show_customer_list)
-        self.page_stack.addWidget(workspace)
-        self.page_stack.setCurrentWidget(workspace)
+        workspace.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
+        workspace.destroyed.connect(
+            lambda _object=None, window=workspace: self._folder_window_closed(window)
+        )
+        workspace.showFullScreen()
+
+    def _folder_window_closed(self, window: CustomerFolderDialog) -> None:
+        if self._folder_workspace is window:
+            self._folder_workspace = None
 
     def show_customer_list(self) -> None:
         self.page_stack.setCurrentWidget(self.customer_list_page)
         if self._folder_workspace is not None:
-            self.page_stack.removeWidget(self._folder_workspace)
-            self._folder_workspace.deleteLater()
+            self._folder_workspace.close()
             self._folder_workspace = None
         self.refresh()
 

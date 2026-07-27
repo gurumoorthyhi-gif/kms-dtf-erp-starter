@@ -161,13 +161,13 @@ def test_customer_folder_opens_maximized_with_adjustable_image_preview(
     assert dialog.workspace_splitter.count() == 2
     assert dialog.workspace_splitter.widget(0) is dialog.browser_panel
     assert dialog.workspace_splitter.widget(1) is dialog.preview_panel
-    assert dialog.browser_splitter.widget(0) is dialog.tree
+    assert dialog.browser_splitter.widget(0) is dialog.tree_panel
     assert dialog.workspace_splitter.handleWidth() > 0
     assert dialog.preview_stack.currentWidget() is dialog.image_scroll
     assert dialog.image_label.pixmap().isNull() is False
 
 
-def test_customer_folder_stays_in_page_and_back_returns_to_customer_list(qtbot) -> None:
+def test_customer_folder_opens_in_separate_full_screen_window(qtbot) -> None:
     class EmbeddedFolderService(FakeCustomerService):
         def ensure_customer_storage(self, customer_id):
             summary = SimpleNamespace(display_identifier="CO0001 - KMS - TIRUPUR")
@@ -183,10 +183,33 @@ def test_customer_folder_stays_in_page_and_back_returns_to_customer_list(qtbot) 
     page.open_customer_folder(1)
 
     assert page._folder_workspace is not None
-    assert page.page_stack.currentWidget() is page._folder_workspace
-    assert page._folder_workspace._embedded is True
-
-    page._folder_workspace.back_requested.emit()
-
     assert page.page_stack.currentWidget() is page.customer_list_page
-    assert page._folder_workspace is None
+    assert page._folder_workspace._embedded is False
+    assert page._folder_workspace.windowState() & Qt.WindowState.WindowFullScreen
+
+    page._folder_workspace.close()
+
+
+def test_customer_folder_tree_can_go_back_to_customer_and_main_folder(qtbot) -> None:
+    class FolderService(FakeCustomerService):
+        def ensure_customer_storage(self, customer_id):
+            summary = SimpleNamespace(display_identifier="CO0001 - KMS - TIRUPUR")
+            return SimpleNamespace(summary=summary)
+
+        def customer_storage_dates(self, customer_id):
+            return ["2026-07-28"]
+
+        def list_customer_files(self, customer_id, date_name, folder_name):
+            return []
+
+    dialog = CustomerFolderDialog(FolderService(), 1)  # type: ignore[arg-type]
+    qtbot.addWidget(dialog)
+
+    assert dialog.tree.topLevelItem(0).text(0) == "2026-07-28"
+
+    dialog.tree_back_button.click()
+    assert dialog.tree.topLevelItem(0).text(0) == "CO0001 - KMS - TIRUPUR"
+
+    dialog.tree_back_button.click()
+    assert dialog.tree.topLevelItem(0).text(0) == "Customers"
+    assert dialog.tree_back_button.isEnabled() is False

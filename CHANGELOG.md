@@ -9,8 +9,9 @@
   two-column editor.
 - Added stable customer storage roots and explicit, duplicate-safe dated work
   folders containing Design, Gangsheet, Invoice Copy, and Payment Receipt.
-- Added an in-page customer file workspace ordered as Folder tree, Items, and
-  adjustable Preview, with preserved navigation back to the customer list.
+- Added a separate full-screen customer file workspace ordered as Folder tree,
+  Items, and adjustable Preview. Folder-panel navigation moves upward to the
+  customer folder and main Customers folder.
 - Added asynchronous Backblaze B2 folder, upload, download, and preview
   operations so remote storage does not block the desktop interface.
 - Added optional Google Drive catalog and customer-sheet synchronization while

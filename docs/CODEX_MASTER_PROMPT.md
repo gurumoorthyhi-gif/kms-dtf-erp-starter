@@ -35,7 +35,9 @@ UI rules:
 - Do not add pin/unpin or width expansion.
 - Use transparent icon backgrounds and neon hover/selected states.
 - The universal Google Drive button remains bottom-right.
-- Customer workspace stays in-page and uses Folder tree → Items → Preview.
+- Customer files open in a separate full-screen window using Folder tree →
+  Items → Preview. Folder-panel Back navigation moves to the customer folder and
+  then the main Customers folder.
 - Image/PDF previews must remain asynchronous for uncached remote files.
 
 Completion checks:

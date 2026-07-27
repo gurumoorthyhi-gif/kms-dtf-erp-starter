@@ -66,14 +66,17 @@ Production Studio is not a separate navigation item.
 
 ### Customer file workspace
 
-The workspace is embedded in the Customers page, not a modal window.
+The workspace opens as a separate full-screen window. The customer list remains
+preserved behind it.
 
 ```text
 Folder tree | File items | Preview
 ```
 
 - Both separators are adjustable.
-- **Back to customers** returns to the preserved list/search/filter state.
+- The folder-panel **Back** control moves from dated folders to the customer
+  folder, then to the main Customers folder.
+- Closing the full-screen window returns to the preserved customer list.
 - **Create today's folder** creates the date exactly once.
 - Date children: Design, Gangsheet, Invoice Copy, Payment Receipt.
 - File actions: Upload, Open, Download, Replace/New Version.
@@ -89,7 +92,7 @@ Folder tree | File items | Preview
 - Never make Backblaze or Google calls on customer creation/folder-navigation UI
   paths.
 - Never block the UI while loading remote previews or synchronizing files.
-- Avoid rebuilding the customer list when entering a workspace.
+- Avoid rebuilding the customer list when opening or closing the file window.
 - Do not create empty date folders during navigation.
 
 ## Accessibility and consistency

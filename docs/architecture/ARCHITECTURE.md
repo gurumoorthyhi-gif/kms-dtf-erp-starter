@@ -43,10 +43,13 @@ routes through Login.
 call services and consume typed results but must not import ORM models to query
 the database.
 
-Customers uses a nested page stack. The list and embedded file workspace remain
-inside one routed Customers page. The workspace uses nested splitters:
+Customers launches a dedicated full-screen file window while preserving the
+customer-list page behind it. The file window uses nested splitters:
 
 `Folder tree | File items | Preview`
+
+The folder pane owns its navigation state and moves upward from a customer's
+dated work folders to the customer folder and then the main Customers folder.
 
 ### Services
 

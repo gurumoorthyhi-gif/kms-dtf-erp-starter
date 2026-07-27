@@ -47,11 +47,12 @@ folder**. The ERP creates that date once with **Design**, **Gangsheet**,
 the same day shows an alert and creates nothing. This keeps the customer tree
 limited to dates that contain real work.
 
-Select **Open folder** to browse these folders inside the ERP, upload files, open
-or download synchronized files, and upload replacement versions. The workspace
-stays inside the Customers page and is arranged as **Folder tree → Items →
-Preview** with draggable dividers. Select **Back to customers** to return to the
-preserved customer list and open another customer immediately. Select a PNG,
+Select **Open folder** to launch a separate full-screen ERP file window, upload
+files, open or download synchronized files, and upload replacement versions.
+The window is arranged as **Folder tree → Items → Preview** with draggable
+dividers. In the folder panel, select **Back** once to see the customer folder
+and again to see the main Customers folder. Close the window to return to the
+preserved customer list. Select a PNG,
 JPEG, TIFF, BMP, WebP, or another supported image format to preview it on the
 right. PDF documents open in the embedded PDF viewer. Files not present in the
 local cache are fetched securely from Backblaze in the background.
