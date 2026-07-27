@@ -2,7 +2,9 @@
 
 import hashlib
 import mimetypes
+from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path, PurePosixPath
+from threading import Lock
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -21,6 +23,7 @@ ALLOWED_PREFIXES = (
     "invoices/",
     "dispatch/",
 )
+FOLDER_MARKER = ".keep"
 
 
 class CloudStorageService:
@@ -31,6 +34,9 @@ class CloudStorageService:
         self.cache_root = cache_root.resolve()
         self.cache_root.mkdir(parents=True, exist_ok=True)
         self._upload_completed = None
+        self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="cloud-sync")
+        self._sync_lock = Lock()
+        self._sync_future: Future | None = None
 
     def set_provider(self, provider: StorageProvider) -> None:
         """Switch providers without discarding locally queued files."""
@@ -40,10 +46,16 @@ class CloudStorageService:
     def set_upload_completed_callback(self, callback) -> None:
         self._upload_completed = callback
 
-    def queue_upload(self, source: Path, prefix: str) -> CloudFile:
+    def queue_upload(
+        self,
+        source: Path,
+        prefix: str,
+        *,
+        auto_sync: bool = True,
+    ) -> CloudFile:
         source = source.resolve()
-        prefix = prefix.strip("/") + "/"
-        if not source.is_file() or prefix not in ALLOWED_PREFIXES:
+        prefix = self._validated_prefix(prefix)
+        if not source.is_file():
             raise ValueError("Invalid source file or storage path")
         key = f"{prefix}{uuid4().hex}{source.suffix.casefold()}"
         cache = self.cache_root / key
@@ -63,9 +75,73 @@ class CloudStorageService:
             session.add(record)
             session.flush()
             record_id = record.id
-        if self.provider.is_online():
+        if auto_sync and self.provider.is_online():
             self.synchronize()
         return self.get(record_id)
+
+    def synchronize_async(self) -> Future:
+        """Drain the offline queue on one background worker without duplicate jobs."""
+
+        with self._sync_lock:
+            if self._sync_future is None or self._sync_future.done():
+                self._sync_future = self._executor.submit(self._drain_queue)
+            return self._sync_future
+
+    def _drain_queue(self) -> int:
+        total = 0
+        while True:
+            completed = self.synchronize()
+            total += completed
+            pending = self.list_files(states=("queued", "failed"))
+            retryable = [item for item in pending if item.retry_count < 3]
+            if completed == 0 or not retryable:
+                return total
+
+    def close(self) -> None:
+        self._executor.shutdown(wait=False, cancel_futures=False)
+
+    def ensure_folder(self, prefix: str, *, auto_sync: bool = True) -> CloudFile:
+        """Create a durable virtual-folder marker, queued safely when offline."""
+
+        prefix = self._validated_prefix(prefix)
+        key = f"{prefix}{FOLDER_MARKER}"
+        with session_scope(self.factory) as session:
+            existing = session.scalar(select(CloudFile).where(CloudFile.object_key == key))
+            if existing is not None:
+                existing_id = existing.id
+            else:
+                cache = self.cache_root / key
+                cache.parent.mkdir(parents=True, exist_ok=True)
+                cache.write_bytes(b"")
+                marker = CloudFile(
+                    object_key=key,
+                    local_path=str(cache),
+                    original_name=FOLDER_MARKER,
+                    content_type="application/x-directory",
+                    size_bytes=0,
+                    checksum_sha256=hashlib.sha256(b"").hexdigest(),
+                    transfer_state="queued",
+                    operation="folder",
+                )
+                session.add(marker)
+                session.flush()
+                existing_id = marker.id
+        if auto_sync and self.provider.is_online():
+            self.synchronize()
+        return self.get(existing_id)
+
+    def ensure_folders(self, prefixes) -> list[CloudFile]:
+        records = [self.ensure_folder(prefix, auto_sync=False) for prefix in prefixes]
+        if self.provider.is_online():
+            self.synchronize()
+        return records
+
+    def ensure_folders_async(self, prefixes) -> list[CloudFile]:
+        """Record virtual folders locally and upload markers in the background."""
+
+        records = [self.ensure_folder(prefix, auto_sync=False) for prefix in prefixes]
+        self.synchronize_async()
+        return records
 
     def download(self, cloud_file_id: int, destination: Path, progress=None) -> Path:
         record = self.get(cloud_file_id)
@@ -100,7 +176,11 @@ class CloudStorageService:
                 with Path(record.local_path).open("rb") as source:
                     self.provider.upload(record.object_key, source, progress)
                 self._state(record.id, "synced", "")
-                if self._upload_completed is not None and not record.google_drive_file_id:
+                if (
+                    self._upload_completed is not None
+                    and record.operation != "folder"
+                    and not record.google_drive_file_id
+                ):
                     try:
                         drive_file_id = self._upload_completed(record)
                         if drive_file_id:
@@ -121,6 +201,18 @@ class CloudStorageService:
             statement = select(CloudFile).order_by(CloudFile.created_at.desc())
             if states:
                 statement = statement.where(CloudFile.transfer_state.in_(states))
+            return list(session.scalars(statement))
+
+    def list_prefix(self, prefix: str, *, include_markers: bool = False) -> list[CloudFile]:
+        prefix = self._validated_prefix(prefix)
+        with session_scope(self.factory) as session:
+            statement = (
+                select(CloudFile)
+                .where(CloudFile.object_key.like(f"{prefix}%"))
+                .order_by(CloudFile.created_at.desc())
+            )
+            if not include_markers:
+                statement = statement.where(CloudFile.original_name != FOLDER_MARKER)
             return list(session.scalars(statement))
 
     def get(self, record_id: int) -> CloudFile:
@@ -145,3 +237,16 @@ class CloudStorageService:
             record = session.get(CloudFile, record_id)
             if record:
                 record.google_drive_file_id = drive_file_id
+
+    @staticmethod
+    def _validated_prefix(prefix: str) -> str:
+        normalized = PurePosixPath(prefix.strip("/")).as_posix()
+        path = PurePosixPath(normalized)
+        if (
+            not normalized
+            or path.is_absolute()
+            or ".." in path.parts
+            or not any(f"{normalized}/".startswith(allowed) for allowed in ALLOWED_PREFIXES)
+        ):
+            raise ValueError("Invalid storage path")
+        return f"{normalized}/"

@@ -1,5 +1,25 @@
 # Changelog
 
+## Unreleased
+
+- Replaced the expanding navigation concept with a permanently collapsed
+  neon-glass icon rail and reusable hover tooltips.
+- Reworked Customers around local/courier numbering, Indian address and pincode
+  lookup, preferred courier and rate fields, guarded deletion, and a responsive
+  two-column editor.
+- Added stable customer storage roots and explicit, duplicate-safe dated work
+  folders containing Design, Gangsheet, Invoice Copy, and Payment Receipt.
+- Added an in-page customer file workspace ordered as Folder tree, Items, and
+  adjustable Preview, with preserved navigation back to the customer list.
+- Added asynchronous Backblaze B2 folder, upload, download, and preview
+  operations so remote storage does not block the desktop interface.
+- Added optional Google Drive catalog and customer-sheet synchronization while
+  keeping private binaries in Backblaze and operational records in local SQLite.
+- Added database migrations 0020 and 0021 for customer storage roots and dated
+  work-folder records.
+- Reconciled the project Bible, requirements, architecture, database, UI,
+  workflow, deployment, and user documentation with the implemented product.
+
 ## 1.0.0
 
 - Prepared the tested Windows x64 release, installer/uninstaller, shortcuts,
@@ -14,7 +34,7 @@
 - Added typed environment settings, runtime directory initialization, and rotating logs.
 - Added the SQLAlchemy session, health-check, and Alembic migration foundations.
 - Completed Phase 2 with centralized path resolution and global exception handling.
-- Added the Phase 3 Qt Widgets shell with animated navigation and placeholder pages.
+- Added the initial Phase 3 Qt Widgets shell and animated navigation foundation.
 - Added Phase 4 authentication, users, roles, permissions, login/logout, and activity logs.
 - Added the Phase 5 operational dashboard with service-backed empty states and activity.
 - Added Phase 6 customer management with addresses, validation, search, and deactivation.

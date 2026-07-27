@@ -62,3 +62,5 @@ class CustomerDetails:
     shipping_address: AddressInput
     notes: str
     file_references: tuple[tuple[str, str], ...]
+    storage_prefix: str = ""
+    google_drive_folder_id: str = ""

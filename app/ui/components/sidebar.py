@@ -146,9 +146,7 @@ class _GlassTooltip(QFrame):
         path.addPath(pointer)
         painter.fillPath(
             path,
-            QColor(43, 57, 108, 235)
-            if self._dark_mode
-            else QColor(232, 241, 255, 242),
+            QColor(43, 57, 108, 235) if self._dark_mode else QColor(232, 241, 255, 242),
         )
         painter.setPen(QPen(QColor(255, 255, 255, 55), 1))
         painter.drawPath(path)
@@ -211,9 +209,7 @@ class _GlassTooltip(QFrame):
     def set_dark_mode(self, dark_mode: bool) -> None:
         self._dark_mode = dark_mode
         text_color = "#F6F9FF" if dark_mode else "#20345E"
-        self._label.setStyleSheet(
-            f"color: {text_color}; font: 600 12px 'Segoe UI'; padding: 0;"
-        )
+        self._label.setStyleSheet(f"color: {text_color}; font: 600 12px 'Segoe UI'; padding: 0;")
         self.update()
 
     def enterEvent(self, event: QEnterEvent) -> None:
@@ -361,9 +357,7 @@ class GlassNavigationButton(QToolButton):
         icon_pixels = round(22 * scale)
         icon = self.icon().pixmap(icon_pixels, icon_pixels)
         normal_opacity = 0.66 if self._dark_mode else 0.72
-        painter.setOpacity(
-            1.0 if (self._active or self._hover_progress > 0.01) else normal_opacity
-        )
+        painter.setOpacity(1.0 if (self._active or self._hover_progress > 0.01) else normal_opacity)
         painter.drawPixmap(
             int(icon_rect.center().x() - icon_pixels / 2),
             int(icon_rect.center().y() - icon_pixels / 2),
@@ -418,9 +412,7 @@ class ThemeToggleButton(QToolButton):
         self.theme_toggled.emit(self._dark_mode)
 
     def _update_tooltip(self) -> None:
-        self.setToolTip(
-            "Switch to Light Mode" if self._dark_mode else "Switch to Dark Mode"
-        )
+        self.setToolTip("Switch to Light Mode" if self._dark_mode else "Switch to Dark Mode")
 
     def paintEvent(self, event: QEvent) -> None:
         painter = QPainter(self)
@@ -562,9 +554,7 @@ class Sidebar(QFrame):
         self._theme_button.theme_toggled.connect(self._change_theme)
         outer.addWidget(self._theme_button, 0, Qt.AlignmentFlag.AlignHCenter)
 
-    def _add_items(
-        self, layout: QVBoxLayout, items: Sequence[tuple[str, str]]
-    ) -> None:
+    def _add_items(self, layout: QVBoxLayout, items: Sequence[tuple[str, str]]) -> None:
         for page_name, label in items:
             button = GlassNavigationButton(page_name, label)
             if page_name != "users":
@@ -630,9 +620,7 @@ class Sidebar(QFrame):
         painter.fillPath(path, gradient)
         painter.setPen(
             QPen(
-                QColor(255, 255, 255, 78)
-                if self._dark_mode
-                else QColor(87, 111, 166, 48),
+                QColor(255, 255, 255, 78) if self._dark_mode else QColor(87, 111, 166, 48),
                 1,
             )
         )

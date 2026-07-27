@@ -1,25 +1,42 @@
-# Commands to paste into Codex
+# Commands for Continuing Development
 
-## Task 1 — Validate the foundation
+The original phase-by-phase bootstrap tasks are complete. Use these current
+request templates instead.
 
-Read `docs/PROJECT_BIBLE.md`, `docs/CODEX_MASTER_PROMPT.md`, and the repository structure. Validate imports, configuration files, and startup. Fix only foundation problems. Ensure `python run.py` opens a basic PySide6 window. Add a smoke test. Run pytest, ruff, and black checks. Update CHANGELOG.md.
+## Customer workflow change
 
-## Task 2 — Build configuration and logging
+Read the Project Bible, Requirements, customer service/repository/models, customer
+UI, cloud service, Google integration, and migrations. Preserve local-first
+responsiveness. Do not create cloud folders during navigation. Add tests and
+update all affected documentation.
 
-Create typed application settings loaded from `.env`, directory initialization, and Loguru-based rotating logs. Keep configuration under `app/core/config` and logging under `app/core/logging`. Add unit tests. Do not build any business modules yet.
+## File storage change
 
-## Task 3 — Build database foundation
+Inspect `CloudStorageService`, provider adapters, customer storage dates, Settings,
+and Google catalogue behavior. Queue local state before network work, keep
+Backblaze private, background slow operations, and verify offline/retry behavior.
 
-Implement SQLAlchemy engine/session management, declarative base, Alembic initialization, and a health check. Use SQLite for development and preserve future compatibility with PostgreSQL/MySQL. Add tests. Do not create customer or order tables yet.
+## UI change
 
-## Task 4 — Build the application shell
+Read the UI Design System. Preserve the fixed 78 px rail, dark/light
+glassmorphism, universal Google button, and in-page Customers navigation. Test
+widget state, routing, and non-blocking behavior.
 
-Implement the PySide6 main window, page router, glassmorphism theme foundation, top bar, icons-only gradient sidebar, and expand-on-hover behavior. Create only Dashboard and Settings placeholder pages. Keep widgets reusable and avoid business logic in the UI.
+## Database change
 
-## Task 5 — Build authentication foundation
+Add a forward Alembic revision from the current head, update ORM/repository/service
+layers, update migration and metadata tests, and revise the Database Schema.
 
-Implement users, roles, permissions, secure password hashing, login/logout, current-user session, and activity logging. Add migrations, repositories, services, UI pages, and tests. Do not build customers or orders.
+## Release/publish
 
-## Working rule for every task
+Review the whole diff for credentials and runtime files. Run the full test, Ruff,
+Black, compile, and diff checks. Update changelog/docs, commit intentionally,
+push the current branch, and update the existing draft PR.
 
-Before editing, inspect current Git status and relevant files. Work only within the requested scope. At completion, summarize files changed, tests run, remaining risks, and the recommended commit message.
+## Standard completion report
+
+- behavior delivered;
+- migrations added;
+- tests/checks and results;
+- known external deployment requirements;
+- commit, branch, push, and PR state.

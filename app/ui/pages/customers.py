@@ -3,14 +3,35 @@
 from __future__ import annotations
 
 from decimal import Decimal
+from pathlib import Path
+from tempfile import gettempdir
 
-from PySide6.QtCore import QRegularExpression, Qt, QUrl
-from PySide6.QtGui import QDesktopServices, QDoubleValidator, QRegularExpressionValidator
+from PySide6.QtCore import (
+    QEvent,
+    QObject,
+    QRegularExpression,
+    QRunnable,
+    Qt,
+    QThreadPool,
+    QTimer,
+    QUrl,
+    Signal,
+)
+from PySide6.QtGui import (
+    QDesktopServices,
+    QDoubleValidator,
+    QImageReader,
+    QPixmap,
+    QRegularExpressionValidator,
+)
+from PySide6.QtPdf import QPdfDocument
+from PySide6.QtPdfWidgets import QPdfView
 from PySide6.QtWidgets import (
     QComboBox,
     QCompleter,
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
     QFormLayout,
     QFrame,
     QHBoxLayout,
@@ -20,9 +41,13 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
+    QSplitter,
+    QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
     QTextEdit,
+    QTreeWidget,
+    QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
 )
@@ -33,11 +58,13 @@ from app.modules.customers import (
     CustomerDetails,
     CustomerInput,
     CustomerService,
+    CustomerStorageDateExistsError,
     CustomerSyncError,
     CustomerValidationError,
     DuplicateCustomerCodeError,
 )
 from app.modules.customers.pincode_lookup import lookup_pincode
+from app.modules.customers.service import CUSTOMER_STORAGE_FOLDERS
 from app.ui.components.effects import apply_soft_shadow
 
 INDIA_STATES_AND_UNION_TERRITORIES = (
@@ -216,9 +243,7 @@ class CustomerFormDialog(QDialog):
         self.whatsapp.setObjectName("customerInput")
         self.same_as_phone_button = QPushButton("Same as phone")
         self.same_as_phone_button.setObjectName("secondaryButton")
-        self.same_as_phone_button.clicked.connect(
-            lambda: self.whatsapp.setText(self.phone.text())
-        )
+        self.same_as_phone_button.clicked.connect(lambda: self.whatsapp.setText(self.phone.text()))
         whatsapp_layout.addWidget(self.whatsapp, 1)
         whatsapp_layout.addWidget(self.same_as_phone_button)
         form.addRow("WhatsApp number", whatsapp_row)
@@ -231,8 +256,7 @@ class CustomerFormDialog(QDialog):
             self._other_transport_label.setVisible(False)
             self.preferred_courier.currentTextChanged.connect(
                 lambda value: self._other_transport_label.setVisible(
-                    self.delivery_type.currentText() == "Courier"
-                    and value == "OTHER TRANSPORT"
+                    self.delivery_type.currentText() == "Courier" and value == "OTHER TRANSPORT"
                 )
             )
         self.delivery_type.currentTextChanged.connect(self._update_courier_fields)
@@ -350,9 +374,7 @@ class CustomerFormDialog(QDialog):
         self.preferred_courier.setVisible(courier_selected)
         if self._preferred_courier_label is not None:
             self._preferred_courier_label.setVisible(courier_selected)
-        show_other = (
-            courier_selected and self.preferred_courier.currentText() == "OTHER TRANSPORT"
-        )
+        show_other = courier_selected and self.preferred_courier.currentText() == "OTHER TRANSPORT"
         self.other_transport_name.setVisible(show_other)
         if self._other_transport_label is not None:
             self._other_transport_label.setVisible(show_other)
@@ -397,6 +419,409 @@ class CustomerDetailsDialog(QDialog):
         layout.addWidget(buttons)
 
 
+class _PreviewSignals(QObject):
+    loaded = Signal(int, object, str)
+
+
+class _PreviewDownloadTask(QRunnable):
+    def __init__(
+        self,
+        service: CustomerService,
+        file_id: int,
+        destination: Path,
+    ) -> None:
+        super().__init__()
+        self._service = service
+        self._file_id = file_id
+        self._destination = destination
+        self.signals = _PreviewSignals()
+
+    def run(self) -> None:
+        try:
+            path = self._service.download_customer_file(
+                self._file_id,
+                self._destination,
+            )
+        except Exception as error:
+            self.signals.loaded.emit(self._file_id, None, str(error))
+        else:
+            self.signals.loaded.emit(self._file_id, path, "")
+
+
+class CustomerFolderDialog(QDialog):
+    """Browse a customer's dated Backblaze folders without leaving the ERP."""
+
+    back_requested = Signal()
+
+    def __init__(
+        self,
+        service: CustomerService,
+        customer_id: int,
+        parent: QWidget | None = None,
+        *,
+        embedded: bool = False,
+    ) -> None:
+        super().__init__(parent)
+        self._embedded = embedded
+        if embedded:
+            self.setWindowFlags(Qt.WindowType.Widget)
+        self._service = service
+        self._customer_id = customer_id
+        self._file_ids: list[int] = []
+        self._files_by_id = {}
+        self._preview_file_id: int | None = None
+        self._preview_pixmap = QPixmap()
+        self._preview_tasks: set[_PreviewDownloadTask] = set()
+        self._status_timer = QTimer(self)
+        self._status_timer.setInterval(800)
+        self._status_timer.timeout.connect(self.refresh_files)
+        details = service.ensure_customer_storage(customer_id)
+        self.setWindowTitle(f"Customer folder — {details.summary.display_identifier}")
+        self.resize(1440, 900)
+        if not embedded:
+            self.setWindowState(self.windowState() | Qt.WindowState.WindowMaximized)
+
+        layout = QVBoxLayout(self)
+        heading_row = QHBoxLayout()
+        if embedded:
+            top_back = QPushButton("← Back to customers")
+            top_back.setObjectName("secondaryButton")
+            top_back.clicked.connect(self.back_requested.emit)
+            heading_row.addWidget(top_back)
+        heading = QLabel(details.summary.display_identifier)
+        heading.setObjectName("detailsTitle")
+        heading_row.addWidget(heading)
+        heading_row.addStretch()
+        subtitle = QLabel(
+            "Files are stored privately in Backblaze. Select a dated folder to view its files."
+        )
+        subtitle.setObjectName("cardBody")
+        layout.addLayout(heading_row)
+        layout.addWidget(subtitle)
+
+        self.workspace_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.workspace_splitter.setChildrenCollapsible(False)
+
+        preview = QFrame()
+        self.preview_panel = preview
+        preview.setObjectName("glassCard")
+        preview_layout = QVBoxLayout(preview)
+        preview_title = QLabel("Preview")
+        preview_title.setObjectName("detailsTitle")
+        preview_layout.addWidget(preview_title)
+        self.preview_stack = QStackedWidget()
+        self.preview_message = QLabel("Select an image or PDF to preview")
+        self.preview_message.setObjectName("emptyState")
+        self.preview_message.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.preview_message.setWordWrap(True)
+        self.preview_stack.addWidget(self.preview_message)
+
+        self.image_label = QLabel()
+        self.image_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.image_scroll = QScrollArea()
+        self.image_scroll.setWidgetResizable(True)
+        self.image_scroll.setWidget(self.image_label)
+        self.image_scroll.viewport().installEventFilter(self)
+        self.preview_stack.addWidget(self.image_scroll)
+
+        self._pdf_document = QPdfDocument(self)
+        self.pdf_view = QPdfView()
+        self.pdf_view.setDocument(self._pdf_document)
+        self.pdf_view.setZoomMode(QPdfView.ZoomMode.FitInView)
+        self.preview_stack.addWidget(self.pdf_view)
+        preview_layout.addWidget(self.preview_stack, 1)
+        self.preview_name = QLabel("No file selected")
+        self.preview_name.setObjectName("cardBody")
+        self.preview_name.setWordWrap(True)
+        preview_layout.addWidget(self.preview_name)
+
+        browser = QWidget()
+        self.browser_panel = browser
+        browser_layout = QVBoxLayout(browser)
+        browser_layout.setContentsMargins(0, 0, 0, 0)
+        date_toolbar = QHBoxLayout()
+        date_hint = QLabel("Create a date only when new customer work begins.")
+        date_hint.setObjectName("cardBody")
+        self.create_today_button = QPushButton("Create today's folder")
+        self.create_today_button.setObjectName("primaryButton")
+        date_toolbar.addWidget(date_hint)
+        date_toolbar.addStretch()
+        date_toolbar.addWidget(self.create_today_button)
+        browser_layout.addLayout(date_toolbar)
+        browser_splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.browser_splitter = browser_splitter
+        browser_splitter.setChildrenCollapsible(False)
+        self.tree = QTreeWidget()
+        self.tree.setHeaderLabel("Customer folders")
+        self.tree.setMinimumWidth(220)
+        browser_splitter.addWidget(self.tree)
+
+        files_widget = QWidget()
+        right = QVBoxLayout(files_widget)
+        right.setContentsMargins(0, 0, 0, 0)
+        self.table = QTableWidget(0, 4)
+        self.table.setHorizontalHeaderLabels(["File", "Size", "Status", "Uploaded"])
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        right.addWidget(self.table, 1)
+
+        actions = QHBoxLayout()
+        self.upload_button = QPushButton("Upload file")
+        self.open_button = QPushButton("Open")
+        self.download_button = QPushButton("Download")
+        self.replace_button = QPushButton("Replace / new version")
+        close_button = QPushButton("Back to customers" if embedded else "Close")
+        for button in (
+            self.upload_button,
+            self.open_button,
+            self.download_button,
+            self.replace_button,
+            close_button,
+        ):
+            button.setObjectName("secondaryButton")
+            actions.addWidget(button)
+        actions.addStretch()
+        right.addLayout(actions)
+        browser_splitter.addWidget(files_widget)
+        browser_splitter.setSizes([260, 720])
+        browser_layout.addWidget(browser_splitter, 1)
+        self.workspace_splitter.addWidget(browser)
+        self.workspace_splitter.addWidget(preview)
+        self.workspace_splitter.setSizes([920, 520])
+        layout.addWidget(self.workspace_splitter, 1)
+
+        self.tree.currentItemChanged.connect(self.refresh_files)
+        self.table.itemSelectionChanged.connect(self._update_file_actions)
+        self.table.itemSelectionChanged.connect(self.preview_selected)
+        self.upload_button.clicked.connect(self.upload_file)
+        self.create_today_button.clicked.connect(self.create_today_folder)
+        self.open_button.clicked.connect(self.open_file)
+        self.download_button.clicked.connect(self.download_file)
+        self.replace_button.clicked.connect(self.replace_file)
+        self.table.doubleClicked.connect(self.open_file)
+        close_button.clicked.connect(self.back_requested.emit if embedded else self.accept)
+        self._populate_tree()
+
+    def _populate_tree(self, selected_date: str | None = None) -> None:
+        self.tree.clear()
+        selected_item = None
+        for date_name in self._service.customer_storage_dates(self._customer_id):
+            date_item = QTreeWidgetItem([date_name])
+            date_item.setData(0, Qt.ItemDataRole.UserRole, ("date", date_name, ""))
+            self.tree.addTopLevelItem(date_item)
+            for folder_name in CUSTOMER_STORAGE_FOLDERS:
+                folder_item = QTreeWidgetItem([folder_name])
+                folder_item.setData(
+                    0,
+                    Qt.ItemDataRole.UserRole,
+                    ("folder", date_name, folder_name),
+                )
+                date_item.addChild(folder_item)
+                if date_name == selected_date and selected_item is None:
+                    selected_item = folder_item
+            date_item.setExpanded(True)
+        if selected_item is not None:
+            self.tree.setCurrentItem(selected_item)
+        if self.tree.topLevelItemCount():
+            first_date = self.tree.topLevelItem(0)
+            if self.tree.currentItem() is None and first_date.childCount():
+                self.tree.setCurrentItem(first_date.child(0))
+        else:
+            self.table.setRowCount(0)
+            self._file_ids = []
+            self._files_by_id = {}
+            self._show_preview_message(
+                "No date folders yet.\nSelect Create today's folder when work begins."
+            )
+
+    def create_today_folder(self) -> None:
+        try:
+            date_name = self._service.create_customer_date_folder(self._customer_id)
+        except CustomerStorageDateExistsError as error:
+            QMessageBox.information(self, "Folder already exists", str(error))
+            return
+        except Exception as error:
+            QMessageBox.warning(self, "Folder not created", str(error))
+            return
+        self._populate_tree(date_name)
+
+    def _selection(self) -> tuple[str, str] | None:
+        item = self.tree.currentItem()
+        value = item.data(0, Qt.ItemDataRole.UserRole) if item is not None else None
+        if value and value[0] == "folder":
+            return value[1], value[2]
+        return None
+
+    def _selected_file_id(self) -> int | None:
+        row = self.table.currentRow()
+        return self._file_ids[row] if 0 <= row < len(self._file_ids) else None
+
+    def _update_file_actions(self) -> None:
+        has_file = self._selected_file_id() is not None
+        self.open_button.setEnabled(has_file)
+        self.download_button.setEnabled(has_file)
+        self.replace_button.setEnabled(has_file)
+
+    def preview_selected(self) -> None:
+        file_id = self._selected_file_id()
+        self._preview_file_id = file_id
+        if file_id is None:
+            self._show_preview_message("Select an image or PDF to preview")
+            self.preview_name.setText("No file selected")
+            return
+        record = self._files_by_id.get(file_id)
+        if record is None:
+            return
+        self.preview_name.setText(record.original_name)
+        local_path = Path(record.local_path)
+        if local_path.is_file():
+            self._display_preview(local_path)
+            return
+        if record.transfer_state != "synced":
+            self._show_preview_message("Preview will be available after upload completes.")
+            return
+        cache_dir = Path(gettempdir()) / "kms_dtf_erp_previews"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        destination = cache_dir / f"{file_id}{Path(record.original_name).suffix.casefold()}"
+        if destination.is_file():
+            self._display_preview(destination)
+            return
+        self._show_preview_message("Loading secure preview from Backblaze…")
+        task = _PreviewDownloadTask(self._service, file_id, destination)
+        self._preview_tasks.add(task)
+        task.signals.loaded.connect(self._preview_downloaded)
+        task.signals.loaded.connect(
+            lambda *_args, current_task=task: self._preview_tasks.discard(current_task)
+        )
+        QThreadPool.globalInstance().start(task)
+
+    def _preview_downloaded(self, file_id: int, path, error: str) -> None:
+        if file_id != self._preview_file_id:
+            return
+        if error or path is None:
+            self._show_preview_message(f"Preview could not be loaded.\n{error}")
+            return
+        self._display_preview(Path(path))
+
+    def _display_preview(self, path: Path) -> None:
+        if path.suffix.casefold() == ".pdf":
+            self._preview_pixmap = QPixmap()
+            self._pdf_document.close()
+            error = self._pdf_document.load(str(path))
+            if error != QPdfDocument.Error.None_:
+                self._show_preview_message("This PDF could not be rendered.")
+                return
+            self.preview_stack.setCurrentWidget(self.pdf_view)
+            return
+        reader = QImageReader(str(path))
+        reader.setAutoTransform(True)
+        image = reader.read()
+        if image.isNull():
+            self._show_preview_message(
+                "Preview is not available for this file type.\nUse Open or Download."
+            )
+            return
+        self._preview_pixmap = QPixmap.fromImage(image)
+        self.preview_stack.setCurrentWidget(self.image_scroll)
+        self._scale_image_preview()
+
+    def _show_preview_message(self, message: str) -> None:
+        self.preview_message.setText(message)
+        self.preview_stack.setCurrentWidget(self.preview_message)
+
+    def _scale_image_preview(self) -> None:
+        if self._preview_pixmap.isNull():
+            return
+        viewport = self.image_scroll.viewport().size()
+        width = max(80, viewport.width() - 20)
+        height = max(80, viewport.height() - 20)
+        self.image_label.setPixmap(
+            self._preview_pixmap.scaled(
+                width,
+                height,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+        )
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if watched is self.image_scroll.viewport() and event.type() == QEvent.Type.Resize:
+            self._scale_image_preview()
+        return super().eventFilter(watched, event)
+
+    def refresh_files(self, *_args) -> None:
+        selected_id = self._selected_file_id()
+        selection = self._selection()
+        files = (
+            self._service.list_customer_files(self._customer_id, *selection) if selection else []
+        )
+        self._file_ids = [item.id for item in files]
+        self._files_by_id = {item.id: item for item in files}
+        self.table.setRowCount(len(files))
+        for row, item in enumerate(files):
+            values = (
+                item.original_name,
+                _format_file_size(item.size_bytes),
+                item.transfer_state.title(),
+                item.created_at.strftime("%d %b %Y %I:%M %p"),
+            )
+            for column, value in enumerate(values):
+                self.table.setItem(row, column, QTableWidgetItem(value))
+            if item.id == selected_id:
+                self.table.selectRow(row)
+        self.upload_button.setEnabled(selection is not None)
+        self._update_file_actions()
+        if any(item.transfer_state == "queued" for item in files):
+            self._status_timer.start()
+        else:
+            self._status_timer.stop()
+
+    def upload_file(self) -> None:
+        selection = self._selection()
+        if selection is None:
+            return
+        filename, _ = QFileDialog.getOpenFileName(self, "Upload customer file")
+        if not filename:
+            return
+        try:
+            self._service.upload_customer_file(
+                self._customer_id,
+                *selection,
+                Path(filename),
+            )
+        except Exception as error:
+            QMessageBox.warning(self, "Upload failed", str(error))
+        self.refresh_files()
+
+    def open_file(self) -> None:
+        file_id = self._selected_file_id()
+        if file_id is None:
+            return
+        try:
+            QDesktopServices.openUrl(QUrl(self._service.customer_file_url(file_id)))
+        except Exception as error:
+            QMessageBox.warning(self, "File unavailable", str(error))
+
+    def download_file(self) -> None:
+        row = self.table.currentRow()
+        file_id = self._selected_file_id()
+        if file_id is None or row < 0:
+            return
+        filename = self.table.item(row, 0).text()
+        destination, _ = QFileDialog.getSaveFileName(self, "Download file", filename)
+        if not destination:
+            return
+        try:
+            self._service.download_customer_file(file_id, Path(destination))
+        except Exception as error:
+            QMessageBox.warning(self, "Download failed", str(error))
+
+    def replace_file(self) -> None:
+        if self._selected_file_id() is not None:
+            self.upload_file()
+
+
 class CustomersPage(QWidget):
     def __init__(
         self,
@@ -408,7 +833,14 @@ class CustomersPage(QWidget):
         super().__init__(parent)
         self._service = service
         self._customer_ids: list[int] = []
-        layout = QVBoxLayout(self)
+        self._folder_workspace: CustomerFolderDialog | None = None
+        root_layout = QVBoxLayout(self)
+        root_layout.setContentsMargins(0, 0, 0, 0)
+        self.page_stack = QStackedWidget()
+        self.customer_list_page = QWidget()
+        self.page_stack.addWidget(self.customer_list_page)
+        root_layout.addWidget(self.page_stack)
+        layout = QVBoxLayout(self.customer_list_page)
         layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(14)
 
@@ -424,15 +856,8 @@ class CustomersPage(QWidget):
         self.status_filter.addItem("All", None)
         new_button = QPushButton("New customer")
         new_button.setObjectName("primaryButton")
-        self.google_drive_button = QPushButton()
-        self.google_drive_button.setObjectName("secondaryButton")
-        self.google_drive_button.setVisible(
-            bool(getattr(self._service, "google_drive_available", False))
-        )
-        self._update_google_drive_button()
         toolbar_layout.addWidget(self.search_input, 1)
         toolbar_layout.addWidget(self.status_filter)
-        toolbar_layout.addWidget(self.google_drive_button)
         toolbar_layout.addWidget(new_button)
         apply_soft_shadow(toolbar)
 
@@ -445,7 +870,7 @@ class CustomersPage(QWidget):
                 "Business",
                 "Phone",
                 "Preferred Courier",
-                "Details",
+                "Customer Folder",
             ]
         )
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
@@ -474,7 +899,6 @@ class CustomersPage(QWidget):
         self.search_input.textChanged.connect(self.refresh)
         self.status_filter.currentIndexChanged.connect(self.refresh)
         new_button.clicked.connect(self.create_customer)
-        self.google_drive_button.clicked.connect(self.connect_google_drive)
         view_button.clicked.connect(self.view_selected)
         edit_button.clicked.connect(self.edit_selected)
         deactivate_button.clicked.connect(self.deactivate_selected)
@@ -482,43 +906,6 @@ class CustomersPage(QWidget):
         self.table.doubleClicked.connect(self.view_selected)
         if auto_refresh:
             self.refresh()
-
-    def connect_google_drive(self) -> None:
-        if getattr(self._service, "google_drive_connected", False):
-            sheet_url = getattr(self._service, "customer_sheet_url", None)
-            if sheet_url:
-                QDesktopServices.openUrl(QUrl(sheet_url))
-            return
-        self.google_drive_button.setEnabled(False)
-        self.google_drive_button.setText("Connecting...")
-        try:
-            self._service.connect_google_drive()
-        except CustomerSyncError as error:
-            QMessageBox.warning(self, "Google Drive not connected", str(error))
-        else:
-            QMessageBox.information(
-                self,
-                "Google Drive connected",
-                (
-                    "Google Drive is connected.\n\n"
-                    "DTF ERP folders and the Customer Master Sheet were created "
-                    "automatically. Future customer changes will sync automatically."
-                ),
-            )
-        finally:
-            self.google_drive_button.setEnabled(True)
-            self._update_google_drive_button()
-
-    def _update_google_drive_button(self) -> None:
-        connected = bool(getattr(self._service, "google_drive_connected", False))
-        self.google_drive_button.setText(
-            "Google Drive Connected ✓" if connected else "Connect Google Drive"
-        )
-        self.google_drive_button.setToolTip(
-            "Open Customer Master Sheet"
-            if connected
-            else "Sign in with Gmail and create Drive folders automatically"
-        )
 
     def refresh(self) -> None:
         active = self.status_filter.currentData()
@@ -538,10 +925,15 @@ class CustomersPage(QWidget):
             )
             for column, value in enumerate(values):
                 self.table.setItem(row, column, QTableWidgetItem(value))
-            details_button = QPushButton("Details")
-            details_button.setObjectName("secondaryButton")
-            details_button.setProperty("customerId", customer.id)
-            self.table.setCellWidget(row, 5, details_button)
+            folder_button = QPushButton("Open folder")
+            folder_button.setObjectName("secondaryButton")
+            folder_button.setProperty("customerId", customer.id)
+            folder_button.clicked.connect(
+                lambda checked=False, customer_id=customer.id: self.open_customer_folder(
+                    customer_id
+                )
+            )
+            self.table.setCellWidget(row, 5, folder_button)
         self.empty_label.setVisible(not customers)
 
     def selected_customer_id(self) -> int | None:
@@ -566,6 +958,33 @@ class CustomersPage(QWidget):
         customer_id = self.selected_customer_id()
         if customer_id is not None:
             CustomerDetailsDialog(self._service.get_customer(customer_id), self).exec()
+
+    def open_customer_folder(self, customer_id: int) -> None:
+        try:
+            workspace = CustomerFolderDialog(
+                self._service,
+                customer_id,
+                self,
+                embedded=True,
+            )
+        except Exception as error:
+            QMessageBox.warning(self, "Customer folder unavailable", str(error))
+            return
+        if self._folder_workspace is not None:
+            self.page_stack.removeWidget(self._folder_workspace)
+            self._folder_workspace.deleteLater()
+        self._folder_workspace = workspace
+        workspace.back_requested.connect(self.show_customer_list)
+        self.page_stack.addWidget(workspace)
+        self.page_stack.setCurrentWidget(workspace)
+
+    def show_customer_list(self) -> None:
+        self.page_stack.setCurrentWidget(self.customer_list_page)
+        if self._folder_workspace is not None:
+            self.page_stack.removeWidget(self._folder_workspace)
+            self._folder_workspace.deleteLater()
+            self._folder_workspace = None
+        self.refresh()
 
     def deactivate_selected(self) -> None:
         customer_id = self.selected_customer_id()
@@ -635,3 +1054,11 @@ def _preferred_courier_text(customer) -> str:
     if customer.preferred_courier == "OTHER TRANSPORT":
         return customer.other_transport_name or "OTHER TRANSPORT"
     return customer.preferred_courier
+
+
+def _format_file_size(size: int) -> str:
+    if size >= 1024 * 1024:
+        return f"{size / (1024 * 1024):.1f} MB"
+    if size >= 1024:
+        return f"{size / 1024:.1f} KB"
+    return f"{size} B"

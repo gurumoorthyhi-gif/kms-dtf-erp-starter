@@ -1,9 +1,12 @@
+from datetime import datetime
 from decimal import Decimal
+from types import SimpleNamespace
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor, QPixmap
 
 from app.modules.customers import CustomerSummary
-from app.ui.pages import CustomerFormDialog, CustomersPage
+from app.ui.pages import CustomerFolderDialog, CustomerFormDialog, CustomersPage
 
 
 class FakeCustomerService:
@@ -40,7 +43,7 @@ def test_customer_page_loads_and_filters_service_data(qtbot) -> None:
     assert page.table.item(0, 0).text() == "CUS-001 - BUSINESS ONE - CHENNAI"
     assert page.table.item(0, 1).text() == "Customer One"
     assert page.table.item(0, 4).text() == "DTDC"
-    assert page.table.cellWidget(0, 5).text() == "Details"
+    assert page.table.cellWidget(0, 5).text() == "Open folder"
 
     page.search_input.setText("Business")
 
@@ -82,10 +85,7 @@ def test_address_state_field_provides_india_prefix_completion(qtbot) -> None:
     dialog = CustomerFormDialog()
     qtbot.addWidget(dialog)
 
-    states = [
-        dialog.billing.state.itemText(index)
-        for index in range(dialog.billing.state.count())
-    ]
+    states = [dialog.billing.state.itemText(index) for index in range(dialog.billing.state.count())]
 
     assert dialog.billing.state.isEditable()
     assert dialog.billing.state.completer().filterMode() == Qt.MatchFlag.MatchStartsWith
@@ -119,3 +119,74 @@ def test_local_delivery_hides_and_clears_courier_fields(qtbot) -> None:
     assert dialog.other_transport_name.isHidden()
     assert data.preferred_courier == ""
     assert data.other_transport_name == ""
+
+
+def test_customer_folder_opens_maximized_with_adjustable_image_preview(
+    qtbot,
+    tmp_path,
+) -> None:
+    image_path = tmp_path / "design.png"
+    pixmap = QPixmap(320, 180)
+    pixmap.fill(QColor("#6048E8"))
+    assert pixmap.save(str(image_path))
+    summary = SimpleNamespace(display_identifier="CO0001 - KMS - TIRUPUR")
+    details = SimpleNamespace(summary=summary)
+    cloud_file = SimpleNamespace(
+        id=7,
+        original_name="design.png",
+        local_path=str(image_path),
+        size_bytes=image_path.stat().st_size,
+        transfer_state="synced",
+        created_at=datetime.now(),
+    )
+
+    class FolderService:
+        def ensure_customer_storage(self, customer_id):
+            assert customer_id == 1
+            return details
+
+        def customer_storage_dates(self, customer_id):
+            return ["2026-07-28"]
+
+        def list_customer_files(self, customer_id, date_name, folder_name):
+            return [cloud_file] if folder_name == "Design" else []
+
+    dialog = CustomerFolderDialog(FolderService(), 1)  # type: ignore[arg-type]
+    qtbot.addWidget(dialog)
+    dialog.show()
+    dialog.table.selectRow(0)
+    qtbot.wait(50)
+
+    assert dialog.windowState() & Qt.WindowState.WindowMaximized
+    assert dialog.workspace_splitter.count() == 2
+    assert dialog.workspace_splitter.widget(0) is dialog.browser_panel
+    assert dialog.workspace_splitter.widget(1) is dialog.preview_panel
+    assert dialog.browser_splitter.widget(0) is dialog.tree
+    assert dialog.workspace_splitter.handleWidth() > 0
+    assert dialog.preview_stack.currentWidget() is dialog.image_scroll
+    assert dialog.image_label.pixmap().isNull() is False
+
+
+def test_customer_folder_stays_in_page_and_back_returns_to_customer_list(qtbot) -> None:
+    class EmbeddedFolderService(FakeCustomerService):
+        def ensure_customer_storage(self, customer_id):
+            summary = SimpleNamespace(display_identifier="CO0001 - KMS - TIRUPUR")
+            return SimpleNamespace(summary=summary)
+
+        def customer_storage_dates(self, customer_id):
+            return []
+
+    page = CustomersPage(EmbeddedFolderService())  # type: ignore[arg-type]
+    qtbot.addWidget(page)
+    page.show()
+
+    page.open_customer_folder(1)
+
+    assert page._folder_workspace is not None
+    assert page.page_stack.currentWidget() is page._folder_workspace
+    assert page._folder_workspace._embedded is True
+
+    page._folder_workspace.back_requested.emit()
+
+    assert page.page_stack.currentWidget() is page.customer_list_page
+    assert page._folder_workspace is None

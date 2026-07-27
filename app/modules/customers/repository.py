@@ -2,11 +2,18 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 from sqlalchemy import or_, select
 from sqlalchemy.orm import selectinload
 
 from app.database import SessionFactory, session_scope
-from app.modules.customers.models import Customer, CustomerAddress, CustomerFileReference
+from app.modules.customers.models import (
+    Customer,
+    CustomerAddress,
+    CustomerFileReference,
+    CustomerStorageDate,
+)
 from app.modules.customers.schemas import AddressInput, CustomerInput
 
 
@@ -19,6 +26,7 @@ class CustomerRepository:
         return (
             selectinload(Customer.addresses),
             selectinload(Customer.file_references),
+            selectinload(Customer.storage_dates),
         )
 
     def get(self, customer_id: int) -> Customer | None:
@@ -42,11 +50,7 @@ class CustomerRepository:
                     Customer.code.like("LO____") | Customer.code.like("CO____")
                 )
             )
-            serials = [
-                int(code[-4:])
-                for code in codes
-                if len(code) == 6 and code[-4:].isdigit()
-            ]
+            serials = [int(code[-4:]) for code in codes if len(code) == 6 and code[-4:].isdigit()]
         serial = max(serials, default=0) + 1
         if serial > 9999:
             raise ValueError("Customer serial number limit has been reached")
@@ -74,7 +78,7 @@ class CustomerRepository:
                 statement = statement.where(Customer.is_active.is_(active))
             return list(session.scalars(statement.order_by(Customer.name)))
 
-    def create(self, data: CustomerInput) -> Customer:
+    def create(self, data: CustomerInput, *, storage_prefix: str = "") -> Customer:
         with session_scope(self._session_factory) as session:
             customer = Customer(
                 code=data.code,
@@ -89,6 +93,7 @@ class CustomerRepository:
                 email=data.email,
                 gst_number=data.gst_number,
                 notes=data.notes,
+                storage_prefix=storage_prefix,
                 addresses=self._build_addresses(data),
             )
             session.add(customer)
@@ -132,6 +137,73 @@ class CustomerRepository:
                 for field, field_value in self._address_values(value).items():
                     setattr(address, field, field_value)
         return self.get(customer_id)
+
+    def set_storage(
+        self,
+        customer_id: int,
+        *,
+        storage_prefix: str,
+        google_drive_folder_id: str | None = None,
+    ) -> Customer | None:
+        with session_scope(self._session_factory) as session:
+            customer = session.get(Customer, customer_id)
+            if customer is None:
+                return None
+            customer.storage_prefix = storage_prefix
+            if google_drive_folder_id is not None:
+                customer.google_drive_folder_id = google_drive_folder_id
+        return self.get(customer_id)
+
+    def create_storage_date(
+        self,
+        customer_id: int,
+        folder_date: date,
+    ) -> CustomerStorageDate | None:
+        with session_scope(self._session_factory) as session:
+            if session.get(Customer, customer_id) is None:
+                return None
+            existing = session.scalar(
+                select(CustomerStorageDate).where(
+                    CustomerStorageDate.customer_id == customer_id,
+                    CustomerStorageDate.folder_date == folder_date,
+                )
+            )
+            if existing is not None:
+                return existing
+            record = CustomerStorageDate(
+                customer_id=customer_id,
+                folder_date=folder_date,
+            )
+            session.add(record)
+            session.flush()
+            session.expunge(record)
+            return record
+
+    def list_storage_dates(self, customer_id: int) -> list[CustomerStorageDate]:
+        with session_scope(self._session_factory) as session:
+            return list(
+                session.scalars(
+                    select(CustomerStorageDate)
+                    .where(CustomerStorageDate.customer_id == customer_id)
+                    .order_by(CustomerStorageDate.folder_date.desc())
+                )
+            )
+
+    def set_storage_date_drive_id(
+        self,
+        customer_id: int,
+        folder_date: date,
+        drive_folder_id: str,
+    ) -> None:
+        with session_scope(self._session_factory) as session:
+            record = session.scalar(
+                select(CustomerStorageDate).where(
+                    CustomerStorageDate.customer_id == customer_id,
+                    CustomerStorageDate.folder_date == folder_date,
+                )
+            )
+            if record is not None:
+                record.google_drive_folder_id = drive_folder_id
 
     def deactivate(self, customer_id: int) -> bool:
         with session_scope(self._session_factory) as session:

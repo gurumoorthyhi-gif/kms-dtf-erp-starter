@@ -166,9 +166,7 @@ def main() -> int:
         paths.local_storage_directory / "storage_settings.json"
     )
     storage_configuration, storage_secret = storage_configuration_store.load()
-    storage_provider = LocalStorageProvider(
-        paths.local_storage_directory / "cloud_provider"
-    )
+    storage_provider = LocalStorageProvider(paths.local_storage_directory / "cloud_provider")
     if storage_configuration.is_configured and storage_secret:
         try:
             storage_provider = S3CompatibleProvider.for_backblaze(
@@ -184,7 +182,8 @@ def main() -> int:
         storage_provider,
         paths.local_storage_directory / "cloud_cache",
     )
-    if storage_configuration.google_catalog_enabled and customer_sheet_sync.is_connected:
+    customer_service.set_storage_service(cloud_service)
+    if customer_sheet_sync.is_connected:
         cloud_service.set_upload_completed_callback(
             customer_sheet_sync.create_storage_catalog_entry
         )
@@ -246,4 +245,6 @@ def main() -> int:
         return app.exec()
     finally:
         ai_job_manager.close()
+        cloud_service.close()
+        customer_sheet_sync.close()
         engine.dispose()

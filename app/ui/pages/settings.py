@@ -79,12 +79,13 @@ class SettingsPage(QWidget):
         card_layout.addLayout(form)
 
         self.google_catalog = QCheckBox(
-            "Create lightweight Google Drive catalog entries for uploaded files"
+            "Google Drive catalog sync (managed by the universal Drive button)"
         )
         self.google_catalog.setToolTip(
             "Files remain private in Backblaze; Google Drive stores metadata-only entries."
         )
         card_layout.addWidget(self.google_catalog)
+        self.google_catalog.setEnabled(False)
 
         buttons = QHBoxLayout()
         self.test_button = QPushButton("Test connection")
@@ -114,10 +115,13 @@ class SettingsPage(QWidget):
         self.bucket.setText(config.bucket)
         self.key_id.setText(config.key_id)
         self.application_key.setText(secret)
-        self.google_catalog.setChecked(config.google_catalog_enabled)
+        self.google_catalog.setChecked(
+            bool(self._google_sync is not None and self._google_sync.is_connected)
+        )
         self.status.setText(
-            "Backblaze is configured." if config.is_configured and secret else
-            "Enter the private Backblaze bucket connection details."
+            "Backblaze is configured."
+            if config.is_configured and secret
+            else "Enter the private Backblaze bucket connection details."
         )
 
     def _configuration(self) -> BackblazeConfiguration:
@@ -125,7 +129,9 @@ class SettingsPage(QWidget):
             endpoint_url=self.endpoint.text().strip(),
             bucket=self.bucket.text().strip(),
             key_id=self.key_id.text().strip(),
-            google_catalog_enabled=self.google_catalog.isChecked(),
+            google_catalog_enabled=bool(
+                self._google_sync is not None and self._google_sync.is_connected
+            ),
         )
 
     def _provider(self) -> S3CompatibleProvider:
@@ -149,8 +155,8 @@ class SettingsPage(QWidget):
             return
         self.status.setText(
             "Connection successful. The private bucket is ready."
-            if online else
-            "Connection failed. Check the endpoint, bucket, and application key."
+            if online
+            else "Connection failed. Check the endpoint, bucket, and application key."
         )
 
     def save(self) -> None:
@@ -162,11 +168,7 @@ class SettingsPage(QWidget):
             if not provider.is_online():
                 raise RuntimeError("Backblaze did not accept these connection details")
             callback = None
-            if config.google_catalog_enabled:
-                if self._google_sync is None or not self._google_sync.is_connected:
-                    raise RuntimeError(
-                        "Connect Google Drive from the customer page before enabling its catalog"
-                    )
+            if self._google_sync is not None and self._google_sync.is_connected:
                 callback = self._google_sync.create_storage_catalog_entry
             self._store.save(config, self.application_key.text())
             self._service.set_provider(provider)

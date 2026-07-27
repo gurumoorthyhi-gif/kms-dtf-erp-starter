@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import Property, QEasingCurve, QPropertyAnimation, QSettings
+from PySide6.QtCore import Property, QEasingCurve, QPropertyAnimation, QSettings, QUrl
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QMainWindow,
+    QMessageBox,
+    QPushButton,
     QVBoxLayout,
 )
 
@@ -157,6 +160,8 @@ class MainWindow(QMainWindow):
         self._theme_animation.setDuration(350)
         self._theme_animation.setEasingCurve(QEasingCurve.Type.InOutCubic)
         self._authentication_service = authentication_service
+        self._customer_service = customer_service
+        self._cloud_storage_service = cloud_storage_service
         self.setWindowTitle("KMS DTF ERP")
         self.setWindowIcon(application_icon())
         self.resize(1280, 800)
@@ -318,6 +323,17 @@ class MainWindow(QMainWindow):
         workspace.setSpacing(18)
         workspace.addWidget(self.top_bar)
         workspace.addWidget(self.router, 1)
+        drive_footer = QHBoxLayout()
+        drive_footer.addStretch()
+        self.google_drive_button = QPushButton()
+        self.google_drive_button.setObjectName("secondaryButton")
+        self.google_drive_button.setVisible(
+            customer_service is not None and customer_service.google_drive_available
+        )
+        self.google_drive_button.clicked.connect(self._open_google_drive)
+        drive_footer.addWidget(self.google_drive_button)
+        workspace.addLayout(drive_footer)
+        self._update_google_drive_button()
 
         shell_layout.addWidget(self.sidebar)
         shell_layout.addLayout(workspace, 1)
@@ -337,6 +353,49 @@ class MainWindow(QMainWindow):
         self._theme_animation.setStartValue(self._theme_progress)
         self._theme_animation.setEndValue(0.0 if dark_mode else 1.0)
         self._theme_animation.start()
+
+    def _update_google_drive_button(self) -> None:
+        connected = bool(
+            self._customer_service is not None and self._customer_service.google_drive_connected
+        )
+        self.google_drive_button.setText(
+            "Open Google Drive" if connected else "Connect Google Drive"
+        )
+        self.google_drive_button.setToolTip(
+            "Open the universal DTF ERP Drive folder"
+            if connected
+            else "Connect Google Drive for universal ERP synchronization"
+        )
+
+    def _open_google_drive(self) -> None:
+        if self._customer_service is None:
+            return
+        if self._customer_service.google_drive_connected:
+            url = self._customer_service.google_drive_url
+            if url:
+                QDesktopServices.openUrl(QUrl(url))
+            return
+        self.google_drive_button.setEnabled(False)
+        self.google_drive_button.setText("Connecting...")
+        try:
+            url = self._customer_service.connect_google_drive()
+            if url:
+                QDesktopServices.openUrl(QUrl(url))
+        except Exception as error:
+            QMessageBox.warning(self, "Google Drive not connected", str(error))
+        else:
+            if self._cloud_storage_service is not None:
+                self._cloud_storage_service.set_upload_completed_callback(
+                    self._customer_service.create_google_storage_catalog_entry
+                )
+            QMessageBox.information(
+                self,
+                "Google Drive connected",
+                "The universal ERP folders and Customer Master Sheet are ready.",
+            )
+        finally:
+            self.google_drive_button.setEnabled(True)
+            self._update_google_drive_button()
 
     def navigate(self, page_name: str) -> None:
         """Switch shell pages and synchronize the navigation context."""

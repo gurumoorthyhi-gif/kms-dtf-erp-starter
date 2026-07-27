@@ -23,6 +23,7 @@ from app.ui.pages.shipping import DispatchPage, PackingPage
 
 __all__ = [
     "CustomerDetailsDialog",
+    "CustomerFolderDialog",
     "CustomerFormDialog",
     "CustomersPage",
     "DashboardPage",
@@ -58,4 +59,9 @@ __all__ = [
     "PackingPage",
     "SuppliersPage",
 ]
-from app.ui.pages.customers import CustomerDetailsDialog, CustomerFormDialog, CustomersPage
+from app.ui.pages.customers import (
+    CustomerDetailsDialog,
+    CustomerFolderDialog,
+    CustomerFormDialog,
+    CustomersPage,
+)

@@ -112,6 +112,20 @@ def test_google_catalog_failure_does_not_mark_backblaze_upload_failed(tmp_path: 
     engine.dispose()
 
 
+def test_nested_customer_prefix_and_folder_markers_are_supported(tmp_path: Path) -> None:
+    provider = InterruptibleProvider(True)
+    engine, service = make_service(tmp_path, provider)
+    prefix = "customers/CO0001 - KMS - TIRUPUR/2026-07-28/design"
+
+    marker = service.ensure_folder(prefix)
+
+    assert marker.object_key == f"{prefix}/.keep"
+    assert marker.transfer_state == "synced"
+    assert service.list_prefix(prefix) == []
+    assert service.list_prefix(prefix, include_markers=True)[0].id == marker.id
+    engine.dispose()
+
+
 def test_local_and_s3_compatible_providers(tmp_path: Path) -> None:
     local = LocalStorageProvider(tmp_path / "objects")
     local.upload("orders/1/file.txt", BytesIO(b"data"))

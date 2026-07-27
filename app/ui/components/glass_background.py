@@ -75,9 +75,7 @@ class GlassApplicationBackground(QWidget):
             QPointF(rect.width() * 0.82, rect.height() * 0.90),
             rect.width() * 0.38,
         )
-        violet.setColorAt(
-            0.0, QColor(165, 108, 255, round(70 - 20 * self._theme_progress))
-        )
+        violet.setColorAt(0.0, QColor(165, 108, 255, round(70 - 20 * self._theme_progress)))
         violet.setColorAt(1.0, QColor(155, 110, 255, 0))
         painter.fillRect(rect, violet)
 
@@ -85,8 +83,6 @@ class GlassApplicationBackground(QWidget):
             QPointF(rect.width() * 0.03, rect.height() * 0.50),
             rect.width() * 0.23,
         )
-        rail_shadow.setColorAt(
-            0.0, QColor(5, 15, 55, round(90 - 65 * self._theme_progress))
-        )
+        rail_shadow.setColorAt(0.0, QColor(5, 15, 55, round(90 - 65 * self._theme_progress)))
         rail_shadow.setColorAt(1.0, QColor(5, 15, 55, 0))
         painter.fillRect(rect, rail_shadow)

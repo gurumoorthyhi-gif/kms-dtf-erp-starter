@@ -33,9 +33,28 @@ test succeeds. The application key is stored in the operating system credential
 vault and is not written to the ERP database or settings file.
 
 Use **Cloud Storage** to upload and synchronize files. Select a synchronized file
-and choose **Open selected** to obtain temporary private access. If Google Drive
-is connected, Settings can optionally create metadata-only Drive catalog entries;
+and choose **Open selected** to obtain temporary private access. When Google Drive
+is connected, the ERP creates metadata-only Drive catalog entries automatically;
 the original file remains in Backblaze and does not consume Drive file storage.
+
+The universal **Google Drive** button is located at the bottom-right of the
+application. It connects or opens the main DTF ERP Drive folder from any module.
+
+Creating a customer creates only its stable customer root in Backblaze and Google
+Drive. When new work begins, open the customer and select **Create today's
+folder**. The ERP creates that date once with **Design**, **Gangsheet**,
+**Invoice Copy**, and **Payment Receipt** folders. Selecting the button again on
+the same day shows an alert and creates nothing. This keeps the customer tree
+limited to dates that contain real work.
+
+Select **Open folder** to browse these folders inside the ERP, upload files, open
+or download synchronized files, and upload replacement versions. The workspace
+stays inside the Customers page and is arranged as **Folder tree → Items →
+Preview** with draggable dividers. Select **Back to customers** to return to the
+preserved customer list and open another customer immediately. Select a PNG,
+JPEG, TIFF, BMP, WebP, or another supported image format to preview it on the
+right. PDF documents open in the embedded PDF viewer. Files not present in the
+local cache are fetched securely from Backblaze in the background.
 
 ## Security
 

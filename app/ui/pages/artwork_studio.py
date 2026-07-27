@@ -441,9 +441,9 @@ class ArtworkStudioPage(QWidget):
         if self.details is None or not self.details.items:
             QMessageBox.information(self, "Adjust page", "Place at least one design first.")
             return
-        required_length = max(
-            item.y_mm + item.height_mm for item in self.details.items
-        ) + Decimal("2")
+        required_length = max(item.y_mm + item.height_mm for item in self.details.items) + Decimal(
+            "2"
+        )
         try:
             self.details = self.service.resize_sheet(
                 self.details.id,

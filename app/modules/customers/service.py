@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import replace
+from datetime import date
 from decimal import Decimal, InvalidOperation
 from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
@@ -22,14 +23,19 @@ from app.modules.customers.schemas import (
 )
 
 if TYPE_CHECKING:
+    from app.modules.cloud_storage import CloudStorageService
     from app.modules.customers.google_sheets import GoogleCustomerSheetSync
 
 CODE_PATTERN = re.compile(r"^[A-Z0-9][A-Z0-9-]{1,29}$")
 EMAIL_PATTERN = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 GST_PATTERN = re.compile(r"^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][A-Z0-9]Z[A-Z0-9]$")
-PREFERRED_COURIERS = frozenset(
-    {"ST", "PROFESSIONAL", "DTDC", "BUS", "TRAIN", "OTHER TRANSPORT"}
-)
+PREFERRED_COURIERS = frozenset({"ST", "PROFESSIONAL", "DTDC", "BUS", "TRAIN", "OTHER TRANSPORT"})
+CUSTOMER_STORAGE_FOLDERS = {
+    "Design": "design",
+    "Gangsheet": "gangsheet",
+    "Invoice Copy": "invoice-copy",
+    "Payment Receipt": "payment-receipt",
+}
 
 
 class CustomerValidationError(ValueError):
@@ -48,16 +54,25 @@ class CustomerDeletionError(ValueError):
     pass
 
 
+class CustomerStorageDateExistsError(ValueError):
+    pass
+
+
 class CustomerService:
     def __init__(
         self,
         repository: CustomerRepository,
         authentication_service: AuthenticationService | None = None,
         sheet_sync: GoogleCustomerSheetSync | None = None,
+        storage_service: CloudStorageService | None = None,
     ) -> None:
         self._repository = repository
         self._authentication_service = authentication_service
         self._sheet_sync = sheet_sync
+        self._storage_service = storage_service
+
+    def set_storage_service(self, storage_service: CloudStorageService) -> None:
+        self._storage_service = storage_service
 
     def list_customers(
         self, query: str = "", *, active: bool | None = True
@@ -82,7 +97,9 @@ class CustomerService:
         normalized = self._validate(data)
         if self._repository.get_by_code(normalized.code) is not None:
             raise DuplicateCustomerCodeError(f"Customer code already exists: {normalized.code}")
-        created = self._details(self._repository.create(normalized))
+        storage_prefix = self._storage_prefix(normalized)
+        created = self._details(self._repository.create(normalized, storage_prefix=storage_prefix))
+        created = self.ensure_customer_storage(created.summary.id)
         self.sync_customer_sheet()
         return created
 
@@ -127,7 +144,11 @@ class CustomerService:
 
     def sync_customer_sheet(self) -> None:
         if self._sheet_sync is not None:
-            self._sheet_sync.sync()
+            sync_async = getattr(self._sheet_sync, "sync_async", None)
+            if callable(sync_async):
+                sync_async()
+            else:
+                self._sheet_sync.sync()
 
     @property
     def google_drive_available(self) -> bool:
@@ -146,6 +167,168 @@ class CustomerService:
             raise CustomerSyncError("Google Drive integration is not available in this build.")
         return self._sheet_sync.connect()
 
+    def create_google_storage_catalog_entry(self, cloud_file) -> str:
+        if self._sheet_sync is None or not self._sheet_sync.is_connected:
+            return ""
+        return self._sheet_sync.create_storage_catalog_entry(cloud_file)
+
+    @property
+    def google_drive_url(self) -> str | None:
+        return getattr(self._sheet_sync, "root_folder_url", None)
+
+    def ensure_customer_storage(self, customer_id: int) -> CustomerDetails:
+        self._require("customers.view")
+        customer = self._repository.get(customer_id)
+        if customer is None:
+            raise CustomerNotFoundError(f"Customer not found: {customer_id}")
+        storage_prefix = customer.storage_prefix or self._storage_prefix_from_customer(customer)
+        drive_id = customer.google_drive_folder_id
+        provision_drive = getattr(
+            self._sheet_sync,
+            "provision_customer_root_async",
+            None,
+        )
+        if (
+            self._sheet_sync is not None
+            and self._sheet_sync.is_connected
+            and callable(provision_drive)
+        ):
+            future = provision_drive(storage_prefix.removeprefix("customers/"))
+            future.add_done_callback(
+                lambda completed, customer_id=customer_id, prefix=storage_prefix: (
+                    self._save_drive_folder_result(customer_id, prefix, completed)
+                )
+            )
+        updated = self._repository.set_storage(
+            customer_id,
+            storage_prefix=storage_prefix,
+            google_drive_folder_id=drive_id,
+        )
+        if updated is None:
+            raise CustomerNotFoundError(f"Customer not found: {customer_id}")
+        return self._details(updated)
+
+    def _save_drive_folder_result(self, customer_id: int, storage_prefix: str, future) -> None:
+        try:
+            drive_id = future.result()
+        except Exception:
+            return
+        self._repository.set_storage(
+            customer_id,
+            storage_prefix=storage_prefix,
+            google_drive_folder_id=drive_id,
+        )
+        self.sync_customer_sheet()
+
+    def customer_storage_dates(self, customer_id: int) -> list[str]:
+        self.ensure_customer_storage(customer_id)
+        return [
+            item.folder_date.isoformat()
+            for item in self._repository.list_storage_dates(customer_id)
+        ]
+
+    def create_customer_date_folder(
+        self,
+        customer_id: int,
+        folder_date: date | None = None,
+    ) -> str:
+        self._require("customers.manage")
+        details = self.ensure_customer_storage(customer_id)
+        selected_date = folder_date or date.today()
+        if any(
+            item.folder_date == selected_date
+            for item in self._repository.list_storage_dates(customer_id)
+        ):
+            raise CustomerStorageDateExistsError(
+                f"A folder for {selected_date.strftime('%d-%m-%Y')} already exists."
+            )
+        record = self._repository.create_storage_date(customer_id, selected_date)
+        if record is None:
+            raise CustomerNotFoundError(f"Customer not found: {customer_id}")
+        date_name = selected_date.isoformat()
+        if self._storage_service is not None:
+            self._storage_service.ensure_folders_async(
+                f"{details.storage_prefix}/{date_name}/{folder}"
+                for folder in CUSTOMER_STORAGE_FOLDERS.values()
+            )
+        provision_drive = getattr(
+            self._sheet_sync,
+            "provision_customer_folders_async",
+            None,
+        )
+        if (
+            self._sheet_sync is not None
+            and self._sheet_sync.is_connected
+            and callable(provision_drive)
+        ):
+            future = provision_drive(
+                details.storage_prefix.removeprefix("customers/"),
+                date_name,
+            )
+            future.add_done_callback(
+                lambda completed, customer_id=customer_id, selected_date=selected_date: (
+                    self._save_date_drive_result(
+                        customer_id,
+                        selected_date,
+                        completed,
+                    )
+                )
+            )
+        return date_name
+
+    def _save_date_drive_result(self, customer_id: int, folder_date: date, future) -> None:
+        try:
+            drive_id = future.result()
+        except Exception:
+            return
+        self._repository.set_storage_date_drive_id(
+            customer_id,
+            folder_date,
+            drive_id,
+        )
+
+    def list_customer_files(self, customer_id: int, date_name: str, folder_name: str):
+        self._require("customers.view")
+        details = self.ensure_customer_storage(customer_id)
+        folder = self._storage_folder(folder_name)
+        if self._storage_service is None:
+            return []
+        return self._storage_service.list_prefix(f"{details.storage_prefix}/{date_name}/{folder}")
+
+    def upload_customer_file(
+        self,
+        customer_id: int,
+        date_name: str,
+        folder_name: str,
+        source: Path,
+    ):
+        self._require("customers.manage")
+        details = self.ensure_customer_storage(customer_id)
+        if date_name not in self.customer_storage_dates(customer_id):
+            raise CustomerValidationError("Create this date folder before uploading files")
+        if self._storage_service is None:
+            raise RuntimeError("File storage is unavailable")
+        folder = self._storage_folder(folder_name)
+        record = self._storage_service.queue_upload(
+            source,
+            f"{details.storage_prefix}/{date_name}/{folder}",
+            auto_sync=False,
+        )
+        self._storage_service.synchronize_async()
+        return record
+
+    def customer_file_url(self, cloud_file_id: int) -> str:
+        self._require("customers.view")
+        if self._storage_service is None:
+            raise RuntimeError("File storage is unavailable")
+        return self._storage_service.access_url(cloud_file_id)
+
+    def download_customer_file(self, cloud_file_id: int, destination: Path) -> Path:
+        self._require("customers.view")
+        if self._storage_service is None:
+            raise RuntimeError("File storage is unavailable")
+        return self._storage_service.download(cloud_file_id, destination)
+
     def add_file_reference(self, customer_id: int, label: str, stored_path: str) -> None:
         self._require("customers.manage")
         path = PurePosixPath(stored_path)
@@ -162,6 +345,35 @@ class CustomerService:
     def _require(self, permission: str) -> None:
         if self._authentication_service is not None:
             self._authentication_service.require_permission(permission)
+
+    @staticmethod
+    def _storage_folder(folder_name: str) -> str:
+        try:
+            return CUSTOMER_STORAGE_FOLDERS[folder_name]
+        except KeyError as error:
+            raise CustomerValidationError("Invalid customer storage folder") from error
+
+    @staticmethod
+    def _storage_prefix(data: CustomerInput) -> str:
+        district = data.billing_address.district or "DISTRICT"
+        business = data.business_name or data.name or "CUSTOMER"
+        folder = f"{data.code} - {business} - {district}".upper()
+        safe = re.sub(r'[<>:"/\\|?*\x00-\x1f]+', "-", folder)
+        safe = re.sub(r"\s+", " ", safe).strip(" .-")
+        return f"customers/{safe}"
+
+    @staticmethod
+    def _storage_prefix_from_customer(customer: Customer) -> str:
+        addresses = {address.address_type: address for address in customer.addresses}
+        billing = addresses.get("billing")
+        data = CustomerInput(
+            code=customer.code,
+            name=customer.name,
+            phone=customer.phone,
+            business_name=customer.business_name,
+            billing_address=AddressInput(district=billing.district if billing is not None else ""),
+        )
+        return CustomerService._storage_prefix(data)
 
     @staticmethod
     def _validate(data: CustomerInput) -> CustomerInput:
@@ -241,19 +453,19 @@ class CustomerService:
     @staticmethod
     def _summary(customer: Customer) -> CustomerSummary:
         billing_address = next(
-            (
-                address
-                for address in customer.addresses
-                if address.address_type == "billing"
-            ),
+            (address for address in customer.addresses if address.address_type == "billing"),
             None,
         )
         business = (customer.business_name or customer.name or "CUSTOMER").strip().upper()
         district = (
-            billing_address.district
-            if billing_address is not None and billing_address.district
-            else "DISTRICT"
-        ).strip().upper()
+            (
+                billing_address.district
+                if billing_address is not None and billing_address.district
+                else "DISTRICT"
+            )
+            .strip()
+            .upper()
+        )
         return CustomerSummary(
             id=customer.id,
             code=customer.code,
@@ -301,4 +513,6 @@ class CustomerService:
             file_references=tuple(
                 (reference.label, reference.stored_path) for reference in customer.file_references
             ),
+            storage_prefix=customer.storage_prefix,
+            google_drive_folder_id=customer.google_drive_folder_id,
         )

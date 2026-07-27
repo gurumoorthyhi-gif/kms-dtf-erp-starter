@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 import sys
+from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path
+from threading import Lock
 from typing import TYPE_CHECKING, Any
 
 from google.auth.transport.requests import Request
@@ -23,6 +25,12 @@ THIRD_PARTY_SHORTCUT_MIME_TYPE = "application/vnd.google-apps.drive-sdk"
 ROOT_FOLDER_NAME = "DTF ERP"
 CHILD_FOLDER_NAMES = ("CUSTOMERS", "ORDERS", "DESIGN", "REPORTS")
 CUSTOMER_SHEET_NAME = "CUSTOMER MASTER"
+CUSTOMER_CONTENT_FOLDERS = (
+    "DESIGN",
+    "GANGSHEET",
+    "INVOICE COPY",
+    "PAYMENT RECEIPT",
+)
 
 CUSTOMER_HEADERS = (
     "customer_identifier",
@@ -58,6 +66,8 @@ CUSTOMER_HEADERS = (
     "shipping_district",
     "shipping_state",
     "shipping_country",
+    "storage_prefix",
+    "google_drive_folder_id",
 )
 
 
@@ -78,6 +88,10 @@ class GoogleCustomerSheetSync:
         self._credentials_path = credentials_path
         self._token_path = token_path
         self._state_path = state_path
+        self._executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="google-sync")
+        self._lock = Lock()
+        self._sync_future: Future | None = None
+        self._folder_futures: dict[tuple[str, str], Future] = {}
 
     @property
     def is_connected(self) -> bool:
@@ -91,6 +105,11 @@ class GoogleCustomerSheetSync:
             return None
         return f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}/edit"
 
+    @property
+    def root_folder_url(self) -> str | None:
+        folder_id = self._load_state().get("root_folder_id")
+        return f"https://drive.google.com/drive/folders/{folder_id}" if folder_id else None
+
     def connect(self) -> str:
         """Authorize Gmail, create the Drive structure, and perform the first sync."""
 
@@ -101,7 +120,7 @@ class GoogleCustomerSheetSync:
                 state = self._provision_drive(credentials)
                 self._save_state(state)
             self._sync_with_credentials(credentials, state["spreadsheet_id"])
-            return self.spreadsheet_url or ""
+            return self.root_folder_url or ""
         except Exception as error:
             raise CustomerSyncError(
                 "Google Drive could not be connected. Confirm the Google account "
@@ -122,6 +141,14 @@ class GoogleCustomerSheetSync:
                 "Customer data was saved locally, but Google Drive synchronization failed."
             ) from error
 
+    def sync_async(self) -> Future:
+        """Queue a coalesced customer-sheet refresh without blocking the UI."""
+
+        with self._lock:
+            if self._sync_future is None or self._sync_future.done():
+                self._sync_future = self._executor.submit(self.sync)
+            return self._sync_future
+
     def create_storage_catalog_entry(self, cloud_file) -> str:
         """Create a metadata-only Drive entry for a private Backblaze object."""
 
@@ -139,9 +166,7 @@ class GoogleCustomerSheetSync:
                         "name": cloud_file.original_name,
                         "mimeType": THIRD_PARTY_SHORTCUT_MIME_TYPE,
                         "parents": [parent_id],
-                        "description": (
-                            "Stored securely in Backblaze B2. Open with KMS DTF ERP."
-                        ),
+                        "description": ("Stored securely in Backblaze B2. Open with KMS DTF ERP."),
                     },
                     fields="id",
                 )
@@ -154,10 +179,117 @@ class GoogleCustomerSheetSync:
                 "entry could not be created."
             ) from error
 
+    def provision_customer_root(self, folder_name: str) -> str:
+        """Create only the permanent customer root folder."""
+
+        if not self.is_connected:
+            return ""
+        try:
+            credentials = self._credentials(interactive=False)
+            state = self._load_state()
+            drive = build("drive", "v3", credentials=credentials, cache_discovery=False)
+            customer_id, _ = self._ensure_customer_root(drive, state, folder_name)
+            self._save_state(state)
+            return str(customer_id)
+        except Exception as error:
+            raise CustomerSyncError(
+                "Customer was saved, but its Google Drive root could not be created."
+            ) from error
+
+    def provision_customer_folders(self, folder_name: str, date_name: str) -> str:
+        """Create one explicit date hierarchy and return the date Drive folder ID."""
+
+        if not self.is_connected:
+            return ""
+        try:
+            credentials = self._credentials(interactive=False)
+            state = self._load_state()
+            drive = build("drive", "v3", credentials=credentials, cache_discovery=False)
+            customer_id, customer_state = self._ensure_customer_root(
+                drive,
+                state,
+                folder_name,
+            )
+            dates = customer_state.setdefault("dates", {})
+            date_state = dates.setdefault(date_name, {})
+            date_id = date_state.get("folder_id")
+            if not date_id:
+                date_id = self._create_folder(drive, date_name, parent_id=customer_id)
+                date_state["folder_id"] = date_id
+            content_ids = date_state.setdefault("folders", {})
+            for content_name in CUSTOMER_CONTENT_FOLDERS:
+                if not content_ids.get(content_name):
+                    content_ids[content_name] = self._create_folder(
+                        drive,
+                        content_name,
+                        parent_id=date_id,
+                    )
+            self._save_state(state)
+            return str(date_id)
+        except Exception as error:
+            raise CustomerSyncError(
+                "Customer was saved, but its Google Drive folders could not be created."
+            ) from error
+
+    def provision_customer_root_async(self, folder_name: str) -> Future:
+        key = (folder_name, "")
+        with self._lock:
+            future = self._folder_futures.get(key)
+            if future is None or future.done():
+                future = self._executor.submit(self.provision_customer_root, folder_name)
+                self._folder_futures[key] = future
+            return future
+
+    def provision_customer_folders_async(self, folder_name: str, date_name: str) -> Future:
+        """Provision one hierarchy in the serialized Google worker."""
+
+        key = (folder_name, date_name)
+        with self._lock:
+            future = self._folder_futures.get(key)
+            if future is None or future.done():
+                future = self._executor.submit(
+                    self.provision_customer_folders,
+                    folder_name,
+                    date_name,
+                )
+                self._folder_futures[key] = future
+            return future
+
+    @staticmethod
+    def _ensure_customer_root(drive, state, folder_name: str):
+        customers_id = state["folder_ids"]["CUSTOMERS"]
+        customer_folders = state.setdefault("customer_folders", {})
+        customer_state = customer_folders.setdefault(folder_name, {})
+        customer_id = customer_state.get("folder_id")
+        if not customer_id:
+            customer_id = GoogleCustomerSheetSync._create_folder(
+                drive,
+                folder_name,
+                parent_id=customers_id,
+            )
+            customer_state["folder_id"] = customer_id
+        return customer_id, customer_state
+
+    def close(self) -> None:
+        self._executor.shutdown(wait=False, cancel_futures=False)
+
     @staticmethod
     def _catalog_parent(state: dict[str, Any], object_key: str) -> str:
         folders = state.get("folder_ids", {})
-        prefix = object_key.split("/", 1)[0]
+        parts = object_key.split("/")
+        prefix = parts[0]
+        if prefix == "customers" and len(parts) >= 5:
+            customer_state = state.get("customer_folders", {}).get(parts[1], {})
+            date_state = customer_state.get("dates", {}).get(parts[2], {})
+            content_name = {
+                "design": "DESIGN",
+                "gangsheet": "GANGSHEET",
+                "invoice-copy": "INVOICE COPY",
+                "payment-receipt": "PAYMENT RECEIPT",
+            }.get(parts[3])
+            content_id = date_state.get("folders", {}).get(content_name)
+            if content_id:
+                return str(content_id)
         folder_name = {
             "customers": "CUSTOMERS",
             "orders": "ORDERS",
@@ -191,11 +323,7 @@ class GoogleCustomerSheetSync:
         if self._credentials_path.exists():
             return self._credentials_path
         bundle_root = getattr(sys, "_MEIPASS", None)
-        bundled = (
-            Path(bundle_root) / "google" / "google_oauth_client.json"
-            if bundle_root
-            else None
-        )
+        bundled = Path(bundle_root) / "google" / "google_oauth_client.json" if bundle_root else None
         if bundled is not None and bundled.exists():
             return bundled
         raise FileNotFoundError("The application Google credential is missing.")
@@ -204,8 +332,7 @@ class GoogleCustomerSheetSync:
         drive = build("drive", "v3", credentials=credentials, cache_discovery=False)
         root_id = self._create_folder(drive, ROOT_FOLDER_NAME, parent_id=None)
         folder_ids = {
-            name: self._create_folder(drive, name, parent_id=root_id)
-            for name in CHILD_FOLDER_NAMES
+            name: self._create_folder(drive, name, parent_id=root_id) for name in CHILD_FOLDER_NAMES
         }
         sheet = (
             drive.files()
@@ -268,7 +395,7 @@ class GoogleCustomerSheetSync:
         sheets = build("sheets", "v4", credentials=credentials, cache_discovery=False)
         customers = self._repository.search(active=None)
         values = [list(CUSTOMER_HEADERS), *[self._customer_row(item) for item in customers]]
-        target_range = f"'{CUSTOMER_SHEET_NAME}'!A:AG"
+        target_range = f"'{CUSTOMER_SHEET_NAME}'!A:AI"
         (
             sheets.spreadsheets()
             .values()
@@ -305,8 +432,10 @@ class GoogleCustomerSheetSync:
         shipping = addresses.get("shipping")
         business = (customer.business_name or customer.name or "CUSTOMER").strip().upper()
         district = (
-            billing.district if billing is not None and billing.district else "DISTRICT"
-        ).strip().upper()
+            (billing.district if billing is not None and billing.district else "DISTRICT")
+            .strip()
+            .upper()
+        )
 
         def address_values(address) -> list[str]:
             if address is None:
@@ -342,4 +471,6 @@ class GoogleCustomerSheetSync:
             str(customer.preferred_rate),
             *address_values(billing),
             *address_values(shipping),
+            customer.storage_prefix,
+            customer.google_drive_folder_id,
         ]

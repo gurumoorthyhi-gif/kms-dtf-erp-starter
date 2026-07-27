@@ -1,15 +1,18 @@
 from dataclasses import replace
+from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
 import pytest
 
 from app.database import Base, create_database_engine, create_session_factory
+from app.modules.cloud_storage import CloudStorageService, LocalStorageProvider
 from app.modules.customers import (
     AddressInput,
     CustomerInput,
     CustomerRepository,
     CustomerService,
+    CustomerStorageDateExistsError,
     CustomerValidationError,
     DuplicateCustomerCodeError,
 )
@@ -199,3 +202,61 @@ def test_customer_file_references_require_managed_relative_paths(customer_servic
 
     with pytest.raises(CustomerValidationError):
         customer_service.add_file_reference(customer.summary.id, "Unsafe", "../secret.txt")
+
+
+def test_customer_creation_prepares_logical_storage_without_network_wait(
+    tmp_path: Path,
+) -> None:
+    class CountingProvider(LocalStorageProvider):
+        online_checks = 0
+
+        def is_online(self) -> bool:
+            self.online_checks += 1
+            return super().is_online()
+
+    engine = create_database_engine(f"sqlite:///{tmp_path / 'customer-storage.db'}")
+    Base.metadata.create_all(engine)
+    factory = create_session_factory(engine)
+    provider = CountingProvider(tmp_path / "backblaze")
+    cloud = CloudStorageService(
+        factory,
+        provider,
+        tmp_path / "cache",
+    )
+    service = CustomerService(CustomerRepository(factory), storage_service=cloud)
+
+    created = service.create_customer(valid_customer("CO0001"))
+
+    assert created.storage_prefix == "customers/CO0001 - KMS TEXTILES - CHENNAI"
+    assert provider.online_checks == 0
+    today = date.today().isoformat()
+    assert service.customer_storage_dates(created.summary.id) == []
+    assert provider.online_checks == 0
+    assert service.create_customer_date_folder(created.summary.id) == today
+    assert service.customer_storage_dates(created.summary.id) == [today]
+    cloud.synchronize_async().result(timeout=5)
+    markers_before = cloud.list_prefix(
+        created.storage_prefix,
+        include_markers=True,
+    )
+    assert len(markers_before) == 4
+
+    with pytest.raises(CustomerStorageDateExistsError, match="already exists"):
+        service.create_customer_date_folder(created.summary.id)
+    assert len(cloud.list_prefix(created.storage_prefix, include_markers=True)) == 4
+
+    design = tmp_path / "front-design.png"
+    design.write_bytes(b"pixels")
+    uploaded = service.upload_customer_file(
+        created.summary.id,
+        today,
+        "Design",
+        design,
+    )
+    assert uploaded.transfer_state == "queued"
+    cloud.synchronize_async().result(timeout=5)
+    assert cloud.get(uploaded.id).transfer_state == "synced"
+    assert service.list_customer_files(created.summary.id, today, "Design")[0].id == uploaded.id
+    assert service.customer_file_url(uploaded.id).startswith("file:")
+    cloud.close()
+    engine.dispose()

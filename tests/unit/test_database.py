@@ -30,6 +30,7 @@ def test_database_health_and_metadata(tmp_path: Path) -> None:
         "customer_addresses",
         "customer_file_references",
         "customer_notification_events",
+        "customer_storage_dates",
         "customers",
         "credit_notes",
         "discount_rules",
