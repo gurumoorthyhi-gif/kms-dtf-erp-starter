@@ -1,6 +1,8 @@
 from io import BytesIO
 from pathlib import Path
 
+from PIL import Image, ImageDraw
+
 from app.database import Base, create_database_engine, create_session_factory
 from app.modules.cloud_storage import (
     CloudStorageService,
@@ -24,6 +26,9 @@ class InterruptibleProvider:
 
     def download(self, key, destination, progress=None):
         destination.write(self.objects[key])
+
+    def delete(self, key):
+        self.objects.pop(key, None)
 
     def signed_download_url(self, key, expires_in=900):
         return f"https://files.example/{key}?expires={expires_in}"
@@ -80,6 +85,88 @@ def test_download_uses_object_key_and_atomic_partial_file(tmp_path: Path) -> Non
 
     assert destination.read_bytes() == b"dispatch"
     assert not destination.with_suffix(".txt.part").exists()
+    engine.dispose()
+
+
+def test_copy_preserves_name_and_delete_removes_provider_object(tmp_path: Path) -> None:
+    provider = InterruptibleProvider(True)
+    engine, service = make_service(tmp_path, provider)
+    source = tmp_path / "customer-design.png"
+    source.write_bytes(b"design")
+    original = service.queue_upload(source, "customers/one/2026-07-29/design/")
+
+    copied = service.copy(original.id, "customers/two/2026-07-30/design/")
+    service.synchronize()
+
+    assert copied.original_name == "customer-design.png"
+    assert provider.objects[copied.object_key] == b"design"
+
+    service.delete(copied.id)
+
+    assert copied.object_key not in provider.objects
+    assert not Path(copied.local_path).exists()
+    engine.dispose()
+
+
+def test_visual_image_search_finds_matching_customer_design(tmp_path: Path) -> None:
+    provider = InterruptibleProvider(True)
+    engine, service = make_service(tmp_path, provider)
+    matching = tmp_path / "matching.png"
+    unrelated = tmp_path / "unrelated.png"
+    query = tmp_path / "query.png"
+
+    match_image = Image.new("RGB", (120, 120), "white")
+    match_draw = ImageDraw.Draw(match_image)
+    match_draw.rectangle((10, 10, 55, 110), fill="red")
+    match_draw.ellipse((60, 20, 110, 70), fill="blue")
+    match_image.save(matching)
+    match_image.resize((200, 200)).save(query)
+
+    other_image = Image.new("RGB", (120, 120), "green")
+    ImageDraw.Draw(other_image).line((0, 0, 120, 120), fill="yellow", width=8)
+    other_image.save(unrelated)
+
+    matched_record = service.queue_upload(matching, "customers/one/2026-07-29/design/")
+    unrelated_record = service.queue_upload(
+        unrelated,
+        "customers/two/2026-07-29/design/",
+    )
+
+    results = service.search_similar_images(query)
+
+    assert results
+    assert results[0].id == matched_record.id
+    assert unrelated_record.id not in {item.id for item in results}
+
+    rotated = tmp_path / "rotated-query.png"
+    match_image.rotate(90, expand=True).save(rotated)
+    rotated_results = service.search_similar_images(rotated)
+
+    assert rotated_results
+    assert rotated_results[0].id == matched_record.id
+
+    whatsapp_mockup = Image.new("RGB", (360, 640), "#efeae2")
+    mockup_draw = ImageDraw.Draw(whatsapp_mockup)
+    mockup_draw.rectangle((0, 0, 360, 72), fill="#075e54")
+    mockup_draw.text((18, 24), "Customer WhatsApp", fill="white")
+    embedded = match_image.resize((230, 230))
+    whatsapp_mockup.paste(embedded, (65, 155))
+    mockup_draw.rounded_rectangle((45, 135, 315, 420), radius=18, outline="#dcf8c6", width=8)
+    mockup_path = tmp_path / "whatsapp-mockup.png"
+    whatsapp_mockup.save(mockup_path)
+
+    mockup_results = service.search_similar_images(mockup_path)
+
+    assert mockup_results
+    assert mockup_results[0].id == matched_record.id
+
+    low_quality = tmp_path / "low-quality.jpg"
+    match_image.resize((72, 72)).save(low_quality, quality=12, optimize=True)
+    low_quality_results = service.search_similar_images(low_quality)
+
+    assert low_quality_results
+    assert low_quality_results[0].id == matched_record.id
+    assert unrelated_record.id not in {item.id for item in low_quality_results}
     engine.dispose()
 
 
@@ -140,6 +227,9 @@ def test_local_and_s3_compatible_providers(tmp_path: Path) -> None:
         def download_fileobj(self, bucket, key, destination, Callback=None):
             destination.write(b"remote")
 
+        def delete_object(self, Bucket, Key):
+            self.deleted = (Bucket, Key)
+
         def list_objects_v2(self, Bucket, MaxKeys):
             assert (Bucket, MaxKeys) == ("kms", 1)
             return {}
@@ -153,3 +243,5 @@ def test_local_and_s3_compatible_providers(tmp_path: Path) -> None:
     assert client.uploaded == ("kms", "customers/1/a.txt", b"a")
     assert s3.is_online() is True
     assert s3.signed_download_url("customers/1/a.txt", 120).endswith("?ttl=120")
+    s3.delete("customers/1/a.txt")
+    assert client.deleted == ("kms", "customers/1/a.txt")

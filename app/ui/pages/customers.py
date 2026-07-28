@@ -36,6 +36,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QHeaderView,
+    QInputDialog,
     QLabel,
     QLineEdit,
     QMessageBox,
@@ -443,6 +444,106 @@ class CustomerDetailsDialog(QDialog):
         layout.addWidget(buttons)
 
 
+class CustomerImageEditorDialog(QDialog):
+    """Image-editor shell; editing tools will be implemented in a later phase."""
+
+    def __init__(self, record, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(f"Image Editor — {record.original_name}")
+        self.resize(1200, 800)
+        self.setMinimumSize(900, 620)
+        layout = QVBoxLayout(self)
+
+        toolbar = QHBoxLayout()
+        self.tool_buttons = {}
+        for label in ("BG Remove", "Upscale", "Eraser", "Select", "Colour Change"):
+            button = QPushButton(label)
+            button.setObjectName("secondaryButton")
+            button.setToolTip(f"{label} will be available in a later update")
+            self.tool_buttons[label] = button
+            toolbar.addWidget(button)
+        toolbar.addStretch()
+        close_button = QPushButton("×")
+        close_button.setObjectName("secondaryButton")
+        close_button.setToolTip("Close editor")
+        close_button.setFixedWidth(38)
+        close_button.clicked.connect(self.accept)
+        toolbar.addWidget(close_button)
+        layout.addLayout(toolbar)
+
+        self.preview = QLabel()
+        self.preview.setObjectName("emptyState")
+        self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.preview.setText("Image preview is unavailable")
+        local_path = Path(record.local_path)
+        pixmap = QPixmap(str(local_path)) if local_path.is_file() else QPixmap()
+        if not pixmap.isNull():
+            self.preview.setPixmap(
+                pixmap.scaled(
+                    1100,
+                    700,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+            )
+        layout.addWidget(self.preview, 1)
+
+
+class CopyFilesToDialog(QDialog):
+    """Choose a customer/date/content folder for direct file copying."""
+
+    def __init__(self, service: CustomerService, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._service = service
+        self.setWindowTitle("Copy files to")
+        self.resize(520, 260)
+        layout = QVBoxLayout(self)
+        form = QFormLayout()
+        self.customer = QComboBox()
+        for item in service.list_customers("", active=True):
+            self.customer.addItem(item.display_identifier, item.id)
+        self.date_folder = QComboBox()
+        self.content_folder = QComboBox()
+        self.content_folder.addItems(CUSTOMER_STORAGE_FOLDERS)
+        form.addRow("Customer", self.customer)
+        form.addRow("Date folder", self.date_folder)
+        form.addRow("Folder", self.content_folder)
+        layout.addLayout(form)
+        self.message = QLabel()
+        self.message.setObjectName("cardBody")
+        layout.addWidget(self.message)
+        self.buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        self.buttons.accepted.connect(self.accept)
+        self.buttons.rejected.connect(self.reject)
+        layout.addWidget(self.buttons)
+        self.customer.currentIndexChanged.connect(self._load_dates)
+        self._load_dates()
+
+    def _load_dates(self) -> None:
+        self.date_folder.clear()
+        customer_id = self.customer.currentData()
+        dates = (
+            self._service.customer_storage_dates(customer_id)
+            if customer_id is not None
+            else []
+        )
+        self.date_folder.addItems(dates)
+        available = bool(dates)
+        self.buttons.button(QDialogButtonBox.StandardButton.Ok).setEnabled(available)
+        self.message.setText(
+            "" if available else "The selected customer has no date folder. Create one first."
+        )
+
+    def destination(self) -> tuple[int, str, str]:
+        return (
+            int(self.customer.currentData()),
+            self.date_folder.currentText(),
+            self.content_folder.currentText(),
+        )
+
+
 class _PreviewSignals(QObject):
     loaded = Signal(int, object, str)
 
@@ -513,8 +614,20 @@ class CustomerFolderDialog(QDialog):
         self.heading.hide()
         window_toolbar = QHBoxLayout()
         window_toolbar.addStretch()
-        self.close_folder_button = QPushButton("Close")
+        self.small_window_button = QPushButton("—")
+        self.small_window_button.setObjectName("secondaryButton")
+        self.small_window_button.setToolTip("Small window")
+        self.small_window_button.setFixedWidth(38)
+        self.maximize_window_button = QPushButton("□")
+        self.maximize_window_button.setObjectName("secondaryButton")
+        self.maximize_window_button.setToolTip("Maximize")
+        self.maximize_window_button.setFixedWidth(38)
+        self.close_folder_button = QPushButton("×")
         self.close_folder_button.setObjectName("secondaryButton")
+        self.close_folder_button.setToolTip("Close")
+        self.close_folder_button.setFixedWidth(38)
+        window_toolbar.addWidget(self.small_window_button)
+        window_toolbar.addWidget(self.maximize_window_button)
         window_toolbar.addWidget(self.close_folder_button)
         layout.addLayout(window_toolbar)
 
@@ -573,40 +686,59 @@ class CustomerFolderDialog(QDialog):
         tree_toolbar.addWidget(self.tree_back_button)
         tree_toolbar.addWidget(self.tree_location, 1)
         tree_layout.addLayout(tree_toolbar)
-        self.create_today_button = QPushButton("Create Folders")
-        self.create_today_button.setObjectName("primaryButton")
-        tree_layout.addWidget(self.create_today_button, 0, Qt.AlignmentFlag.AlignLeft)
         self.tree = QTreeWidget()
         self.tree.setHeaderLabel("Customer folders")
         self.tree.setMinimumWidth(220)
         tree_layout.addWidget(self.tree, 1)
+        self.create_today_button = QPushButton("Create Folders")
+        self.create_today_button.setObjectName("primaryButton")
+        self.search_files_button = QPushButton("🔍")
+        self.search_files_button.setObjectName("secondaryButton")
+        self.search_files_button.setToolTip("Search all customers by design number or date")
+        self.search_files_button.setFixedWidth(42)
+        self.image_search_button = QPushButton("▧")
+        self.image_search_button.setObjectName("secondaryButton")
+        self.image_search_button.setToolTip("Search all customers using an image")
+        self.image_search_button.setFixedWidth(42)
+        folder_actions = QHBoxLayout()
+        folder_actions.addWidget(self.create_today_button)
+        folder_actions.addWidget(self.search_files_button)
+        folder_actions.addWidget(self.image_search_button)
+        folder_actions.addStretch()
+        tree_layout.addLayout(folder_actions)
         browser_splitter.addWidget(tree_panel)
 
         files_widget = QWidget()
         right = QVBoxLayout(files_widget)
         right.setContentsMargins(0, 0, 0, 0)
-        self.table = QTableWidget(0, 4)
-        self.table.setHorizontalHeaderLabels(["File", "Size", "Status", "Uploaded"])
-        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        right.addWidget(self.table, 1)
-
-        actions = QHBoxLayout()
-        self.upload_button = QPushButton("Upload file")
+        file_toolbar = QHBoxLayout()
+        self.upload_button = QPushButton("Upload")
+        self.edit_button = QPushButton("Edit")
+        self.copy_to_button = QPushButton("Copy To")
+        self.delete_file_button = QPushButton("Delete")
         self.open_button = QPushButton("Open")
         self.download_button = QPushButton("Download")
-        self.replace_button = QPushButton("Replace / new version")
         for button in (
             self.upload_button,
+            self.edit_button,
+            self.copy_to_button,
+            self.delete_file_button,
             self.open_button,
             self.download_button,
-            self.replace_button,
         ):
             button.setObjectName("secondaryButton")
-            actions.addWidget(button)
-        actions.addStretch()
-        right.addLayout(actions)
+            file_toolbar.addWidget(button)
+        file_toolbar.addStretch()
+        self.table = QTableWidget(0, 5)
+        self.table.setHorizontalHeaderLabels(["Select", "File", "Size", "Status", "Uploaded"])
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.table.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection)
+        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        right.addWidget(self.table, 1)
+        right.addLayout(file_toolbar)
+
         browser_splitter.addWidget(files_widget)
         browser_splitter.setSizes([260, 720])
         browser_layout.addWidget(browser_splitter, 1)
@@ -620,16 +752,29 @@ class CustomerFolderDialog(QDialog):
         self.tree_back_button.clicked.connect(self._tree_back)
         self.table.itemSelectionChanged.connect(self._update_file_actions)
         self.table.itemSelectionChanged.connect(self.preview_selected)
+        self.table.itemChanged.connect(
+            lambda item: self._update_file_actions() if item.column() == 0 else None
+        )
         self.upload_button.clicked.connect(self.upload_file)
         self.create_today_button.clicked.connect(self.create_today_folder)
+        self.search_files_button.clicked.connect(self.search_files)
+        self.image_search_button.clicked.connect(self.search_by_image)
         self.open_button.clicked.connect(self.open_file)
         self.download_button.clicked.connect(self.download_file)
-        self.replace_button.clicked.connect(self.replace_file)
+        self.edit_button.clicked.connect(self.edit_file)
+        self.copy_to_button.clicked.connect(self.copy_files_to)
+        self.delete_file_button.clicked.connect(self.delete_file)
         self.table.doubleClicked.connect(self.open_file)
+        self.small_window_button.clicked.connect(self.show_small_window)
+        self.maximize_window_button.clicked.connect(self.showMaximized)
         self.close_folder_button.clicked.connect(
             self.back_requested.emit if embedded else self.accept
         )
         self._populate_tree()
+
+    def show_small_window(self) -> None:
+        self.showNormal()
+        self.resize(1200, 760)
 
     def _populate_tree(self, selected_date: str | None = None) -> None:
         self.tree.clear()
@@ -743,11 +888,28 @@ class CustomerFolderDialog(QDialog):
         row = self.table.currentRow()
         return self._file_ids[row] if 0 <= row < len(self._file_ids) else None
 
+    def _selected_file_ids(self) -> list[int]:
+        checked = self._checked_file_ids()
+        if checked:
+            return checked
+        rows = sorted(index.row() for index in self.table.selectionModel().selectedRows())
+        return [self._file_ids[row] for row in rows if 0 <= row < len(self._file_ids)]
+
+    def _checked_file_ids(self) -> list[int]:
+        return [
+            self._file_ids[row]
+            for row in range(self.table.rowCount())
+            if self.table.item(row, 0) is not None
+            and self.table.item(row, 0).checkState() == Qt.CheckState.Checked
+        ]
+
     def _update_file_actions(self) -> None:
-        has_file = self._selected_file_id() is not None
-        self.open_button.setEnabled(has_file)
-        self.download_button.setEnabled(has_file)
-        self.replace_button.setEnabled(has_file)
+        selected_count = len(self._selected_file_ids())
+        self.open_button.setEnabled(selected_count == 1)
+        self.download_button.setEnabled(selected_count > 0)
+        self.edit_button.setEnabled(selected_count == 1)
+        self.copy_to_button.setEnabled(selected_count > 0)
+        self.delete_file_button.setEnabled(selected_count > 0)
 
     def preview_selected(self) -> None:
         file_id = self._selected_file_id()
@@ -838,14 +1000,35 @@ class CustomerFolderDialog(QDialog):
 
     def refresh_files(self, *_args) -> None:
         selected_id = self._selected_file_id()
+        checked_ids = set(self._checked_file_ids())
         selection = self._selection()
         files = (
             self._service.list_customer_files(self._customer_id, *selection) if selection else []
         )
+        self._populate_file_table(files, selected_id=selected_id, checked_ids=checked_ids)
+
+    def _populate_file_table(
+        self,
+        files,
+        *,
+        selected_id: int | None = None,
+        checked_ids: set[int] | None = None,
+    ) -> None:
+        checked_ids = checked_ids or set()
         self._file_ids = [item.id for item in files]
         self._files_by_id = {item.id: item for item in files}
         self.table.setRowCount(len(files))
         for row, item in enumerate(files):
+            checkbox = QTableWidgetItem()
+            checkbox.setFlags(
+                Qt.ItemFlag.ItemIsEnabled
+                | Qt.ItemFlag.ItemIsSelectable
+                | Qt.ItemFlag.ItemIsUserCheckable
+            )
+            checkbox.setCheckState(
+                Qt.CheckState.Checked if item.id in checked_ids else Qt.CheckState.Unchecked
+            )
+            self.table.setItem(row, 0, checkbox)
             values = (
                 item.original_name,
                 _format_file_size(item.size_bytes),
@@ -853,31 +1036,72 @@ class CustomerFolderDialog(QDialog):
                 item.created_at.strftime("%d %b %Y %I:%M %p"),
             )
             for column, value in enumerate(values):
-                self.table.setItem(row, column, QTableWidgetItem(value))
+                self.table.setItem(row, column + 1, QTableWidgetItem(value))
             if item.id == selected_id:
                 self.table.selectRow(row)
-        self.upload_button.setEnabled(selection is not None)
+        self.upload_button.setEnabled(self._selection() is not None)
         self._update_file_actions()
         if any(item.transfer_state == "queued" for item in files):
             self._status_timer.start()
         else:
             self._status_timer.stop()
 
+    def search_files(self) -> None:
+        query, accepted = QInputDialog.getText(
+            self,
+            "Search all customer files",
+            "Enter customer/design number, filename, or date:",
+        )
+        if not accepted or not query.strip():
+            return
+        try:
+            files = self._service.search_all_customer_files(query)
+        except Exception as error:
+            QMessageBox.warning(self, "Search failed", str(error))
+            return
+        self.tree_location.setText(f"All customers — Search: {query.strip()}")
+        self._populate_file_table(files)
+        if not files:
+            self._show_preview_message("No files matched this design number or date.")
+
+    def search_by_image(self) -> None:
+        filename, _ = QFileDialog.getOpenFileName(
+            self,
+            "Choose an image to find",
+            "",
+            "Images (*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff)",
+        )
+        if not filename:
+            return
+        try:
+            files = self._service.search_all_customer_images(Path(filename))
+        except Exception as error:
+            QMessageBox.warning(self, "Image search failed", str(error))
+            return
+        self.tree_location.setText(f"All customers — Image: {Path(filename).name}")
+        self._populate_file_table(files)
+        if not files:
+            self._show_preview_message("No visually similar customer designs were found.")
+
     def upload_file(self) -> None:
         selection = self._selection()
         if selection is None:
             return
-        filename, _ = QFileDialog.getOpenFileName(self, "Upload customer file")
-        if not filename:
+        filenames, _ = QFileDialog.getOpenFileNames(self, "Upload customer files")
+        if not filenames:
             return
-        try:
-            self._service.upload_customer_file(
-                self._customer_id,
-                *selection,
-                Path(filename),
-            )
-        except Exception as error:
-            QMessageBox.warning(self, "Upload failed", str(error))
+        failures = []
+        for filename in filenames:
+            try:
+                self._service.upload_customer_file(
+                    self._customer_id,
+                    *selection,
+                    Path(filename),
+                )
+            except Exception as error:
+                failures.append(f"{Path(filename).name}: {error}")
+        if failures:
+            QMessageBox.warning(self, "Some uploads failed", "\n".join(failures))
         self.refresh_files()
 
     def open_file(self) -> None:
@@ -890,22 +1114,126 @@ class CustomerFolderDialog(QDialog):
             QMessageBox.warning(self, "File unavailable", str(error))
 
     def download_file(self) -> None:
-        row = self.table.currentRow()
-        file_id = self._selected_file_id()
-        if file_id is None or row < 0:
+        file_ids = self._selected_file_ids()
+        if not file_ids:
             return
-        filename = self.table.item(row, 0).text()
-        destination, _ = QFileDialog.getSaveFileName(self, "Download file", filename)
+        if len(file_ids) > 1:
+            directory = QFileDialog.getExistingDirectory(self, "Download selected files")
+            if not directory:
+                return
+            failures = []
+            for file_id in file_ids:
+                record = self._files_by_id[file_id]
+                try:
+                    self._service.download_customer_file(
+                        file_id,
+                        Path(directory) / record.original_name,
+                    )
+                except Exception as error:
+                    failures.append(f"{record.original_name}: {error}")
+            if failures:
+                QMessageBox.warning(self, "Some downloads failed", "\n".join(failures))
+            return
+        file_id = file_ids[0]
+        filename = self._files_by_id[file_id].original_name
+        original_suffix = Path(filename).suffix
+        file_format = original_suffix.removeprefix(".").upper() or "Original"
+        file_filter = (
+            f"{file_format} file (*{original_suffix})" if original_suffix else "Original file"
+        )
+        destination, _ = QFileDialog.getSaveFileName(
+            self,
+            f"Download {file_format} file",
+            filename,
+            file_filter,
+        )
         if not destination:
             return
+        destination_path = Path(destination)
+        if original_suffix and destination_path.suffix.casefold() != original_suffix.casefold():
+            destination_path = destination_path.with_suffix(original_suffix)
         try:
-            self._service.download_customer_file(file_id, Path(destination))
+            self._service.download_customer_file(file_id, destination_path)
         except Exception as error:
             QMessageBox.warning(self, "Download failed", str(error))
 
     def replace_file(self) -> None:
         if self._selected_file_id() is not None:
             self.upload_file()
+
+    def edit_file(self) -> None:
+        file_id = self._selected_file_id()
+        if file_id is None:
+            return
+        record = self._files_by_id.get(file_id)
+        if record is None or Path(record.original_name).suffix.casefold() not in {
+            ".png",
+            ".jpg",
+            ".jpeg",
+            ".webp",
+            ".bmp",
+            ".tif",
+            ".tiff",
+        }:
+            QMessageBox.information(
+                self,
+                "Image editor",
+                "Select an image file to open the editor.",
+            )
+            return
+        CustomerImageEditorDialog(record, self).exec()
+
+    def copy_files_to(self) -> None:
+        file_ids = self._selected_file_ids()
+        if not file_ids:
+            return
+        destination_dialog = CopyFilesToDialog(self._service, self)
+        if destination_dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        customer_id, date_name, folder_name = destination_dialog.destination()
+        failures = []
+        for file_id in file_ids:
+            try:
+                self._service.copy_customer_file(
+                    file_id,
+                    customer_id,
+                    date_name,
+                    folder_name,
+                )
+            except Exception as error:
+                record = self._files_by_id.get(file_id)
+                name = record.original_name if record is not None else str(file_id)
+                failures.append(f"{name}: {error}")
+        if failures:
+            QMessageBox.warning(self, "Some files were not copied", "\n".join(failures))
+        self.refresh_files()
+
+    def delete_file(self) -> None:
+        file_ids = self._selected_file_ids()
+        if not file_ids:
+            return
+        filenames = [self._files_by_id[file_id].original_name for file_id in file_ids]
+        description = (
+            f'"{filenames[0]}"' if len(filenames) == 1 else f"{len(filenames)} selected files"
+        )
+        answer = QMessageBox.question(
+            self,
+            "Delete files",
+            f"Permanently delete {description}?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        failures = []
+        for file_id in file_ids:
+            try:
+                self._service.delete_customer_file(file_id)
+            except Exception as error:
+                failures.append(f"{self._files_by_id[file_id].original_name}: {error}")
+        if failures:
+            QMessageBox.warning(self, "Some files were not deleted", "\n".join(failures))
+        self.refresh_files()
 
 
 class CustomersPage(QWidget):
@@ -1066,7 +1394,7 @@ class CustomersPage(QWidget):
         workspace.destroyed.connect(
             lambda _object=None, window=workspace: self._folder_window_closed(window)
         )
-        workspace.showFullScreen()
+        workspace.showMaximized()
 
     def _folder_window_closed(self, window: CustomerFolderDialog) -> None:
         if self._folder_workspace is window:

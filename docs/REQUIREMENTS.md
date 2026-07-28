@@ -23,8 +23,8 @@ Status: current implemented baseline plus explicitly identified future work.
 
 - Workflow order begins with Dashboard then Customers.
 - Generated customer code:
-  - Local: `LO` + shared four-digit sequence.
-  - Courier: `CO` + shared four-digit sequence.
+  - Local: `LC` + shared four-digit sequence.
+  - Courier: `CR` + shared four-digit sequence.
 - Customer table columns: customer number, name, business, phone, preferred
   courier, and customer folder action.
 - Capture phone, WhatsApp, email, GST, preferred rate, delivery type, courier or

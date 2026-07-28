@@ -8,7 +8,12 @@ from PySide6.QtWidgets import QDialog, QDialogButtonBox
 
 from app.modules.customers import CustomerSummary
 from app.modules.customers import CustomerValidationError
-from app.ui.pages import CustomerFolderDialog, CustomerFormDialog, CustomersPage
+from app.ui.pages import (
+    CustomerFolderDialog,
+    CustomerFormDialog,
+    CustomerImageEditorDialog,
+    CustomersPage,
+)
 
 
 class FakeCustomerService:
@@ -199,9 +204,155 @@ def test_customer_folder_opens_maximized_with_adjustable_image_preview(
     assert dialog.workspace_splitter.handleWidth() > 0
     assert dialog.preview_stack.currentWidget() is dialog.image_scroll
     assert dialog.image_label.pixmap().isNull() is False
+    assert dialog.table.horizontalHeaderItem(0).text() == "Select"
+    assert dialog.table.item(0, 0).flags() & Qt.ItemFlag.ItemIsUserCheckable
+    assert dialog.create_today_button.text() == "Create Folders"
+    assert dialog.search_files_button.toolTip() == (
+        "Search all customers by design number or date"
+    )
+    assert dialog.image_search_button.toolTip() == "Search all customers using an image"
+    assert [button.text() for button in (
+        dialog.upload_button,
+        dialog.edit_button,
+        dialog.copy_to_button,
+        dialog.delete_file_button,
+    )] == ["Upload", "Edit", "Copy To", "Delete"]
 
 
-def test_customer_folder_opens_in_separate_full_screen_window(qtbot) -> None:
+def test_customer_file_download_preserves_original_format(qtbot, tmp_path, monkeypatch) -> None:
+    source = tmp_path / "design.png"
+    source.write_bytes(b"image")
+    downloaded: list[Path] = []
+    cloud_file = SimpleNamespace(
+        id=9,
+        original_name="design.png",
+        local_path=str(source),
+        size_bytes=source.stat().st_size,
+        transfer_state="synced",
+        created_at=datetime.now(),
+    )
+
+    class DownloadService:
+        def ensure_customer_storage(self, customer_id):
+            return SimpleNamespace(
+                summary=SimpleNamespace(display_identifier="CO0001 - KMS - TIRUPUR")
+            )
+
+        def customer_storage_dates(self, customer_id):
+            return ["2026-07-29"]
+
+        def list_customer_files(self, customer_id, date_name, folder_name):
+            return [cloud_file]
+
+        def download_customer_file(self, file_id, destination):
+            downloaded.append(destination)
+            return destination
+
+    monkeypatch.setattr(
+        "app.ui.pages.customers.QFileDialog.getSaveFileName",
+        lambda *args: (str(tmp_path / "renamed.jpg"), "PNG file (*.png)"),
+    )
+    dialog = CustomerFolderDialog(DownloadService(), 1)  # type: ignore[arg-type]
+    qtbot.addWidget(dialog)
+    dialog.table.selectRow(0)
+
+    dialog.download_file()
+
+    assert downloaded == [tmp_path / "renamed.png"]
+
+
+def test_customer_image_editor_contains_planned_tool_buttons(qtbot, tmp_path) -> None:
+    image_path = tmp_path / "design.png"
+    pixmap = QPixmap(200, 120)
+    pixmap.fill(QColor("#6048E8"))
+    assert pixmap.save(str(image_path))
+    record = SimpleNamespace(original_name="design.png", local_path=str(image_path))
+
+    editor = CustomerImageEditorDialog(record)
+    qtbot.addWidget(editor)
+
+    assert list(editor.tool_buttons) == [
+        "BG Remove",
+        "Upscale",
+        "Eraser",
+        "Select",
+        "Colour Change",
+    ]
+    assert editor.preview.pixmap().isNull() is False
+
+
+def test_customer_files_support_batch_download_and_copy_to(
+    qtbot, tmp_path, monkeypatch
+) -> None:
+    downloaded: list[tuple[int, Path]] = []
+    pasted: list[tuple[int, int, str, str]] = []
+    files = [
+        SimpleNamespace(
+            id=file_id,
+            original_name=name,
+            local_path=str(tmp_path / name),
+            size_bytes=10,
+            transfer_state="synced",
+            created_at=datetime.now(),
+        )
+        for file_id, name in ((11, "front.png"), (12, "back.png"))
+    ]
+
+    class BatchService:
+        def ensure_customer_storage(self, customer_id):
+            return SimpleNamespace(
+                summary=SimpleNamespace(display_identifier="CO0001 - KMS - TIRUPUR")
+            )
+
+        def customer_storage_dates(self, customer_id):
+            return ["2026-07-29"]
+
+        def list_customer_files(self, customer_id, date_name, folder_name):
+            return files
+
+        def download_customer_file(self, file_id, destination):
+            downloaded.append((file_id, destination))
+
+        def copy_customer_file(self, file_id, customer_id, date_name, folder_name):
+            pasted.append((file_id, customer_id, date_name, folder_name))
+
+    monkeypatch.setattr(
+        "app.ui.pages.customers.QFileDialog.getExistingDirectory",
+        lambda *args: str(tmp_path / "downloads"),
+    )
+    class FakeCopyDestination:
+        def __init__(self, service, parent):
+            pass
+
+        def exec(self):
+            return QDialog.DialogCode.Accepted
+
+        def destination(self):
+            return (2, "2026-07-30", "Design")
+
+    monkeypatch.setattr(
+        "app.ui.pages.customers.CopyFilesToDialog",
+        FakeCopyDestination,
+    )
+    dialog = CustomerFolderDialog(BatchService(), 1)  # type: ignore[arg-type]
+    qtbot.addWidget(dialog)
+    dialog.table.item(0, 0).setCheckState(Qt.CheckState.Checked)
+    dialog.table.item(1, 0).setCheckState(Qt.CheckState.Checked)
+
+    dialog.download_file()
+    dialog.copy_files_to()
+
+    assert downloaded == [
+        (11, tmp_path / "downloads" / "front.png"),
+        (12, tmp_path / "downloads" / "back.png"),
+    ]
+    assert pasted == [
+        (11, 2, "2026-07-30", "Design"),
+        (12, 2, "2026-07-30", "Design"),
+    ]
+
+
+def test_customer_folder_opens_in_separate_maximized_window(qtbot) -> None:
     class EmbeddedFolderService(FakeCustomerService):
         def ensure_customer_storage(self, customer_id):
             summary = SimpleNamespace(display_identifier="CO0001 - KMS - TIRUPUR")
@@ -219,7 +370,13 @@ def test_customer_folder_opens_in_separate_full_screen_window(qtbot) -> None:
     assert page._folder_workspace is not None
     assert page.page_stack.currentWidget() is page.customer_list_page
     assert page._folder_workspace._embedded is False
-    assert page._folder_workspace.windowState() & Qt.WindowState.WindowFullScreen
+    assert page._folder_workspace.windowState() & Qt.WindowState.WindowMaximized
+
+    page._folder_workspace.small_window_button.click()
+    assert not page._folder_workspace.windowState() & Qt.WindowState.WindowMaximized
+
+    page._folder_workspace.maximize_window_button.click()
+    assert page._folder_workspace.windowState() & Qt.WindowState.WindowMaximized
 
     page._folder_workspace.close()
 

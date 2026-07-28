@@ -25,6 +25,7 @@ __all__ = [
     "CustomerDetailsDialog",
     "CustomerFolderDialog",
     "CustomerFormDialog",
+    "CustomerImageEditorDialog",
     "CustomersPage",
     "DashboardPage",
     "CloudStoragePage",
@@ -63,5 +64,6 @@ from app.ui.pages.customers import (
     CustomerDetailsDialog,
     CustomerFolderDialog,
     CustomerFormDialog,
+    CustomerImageEditorDialog,
     CustomersPage,
 )

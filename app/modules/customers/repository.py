@@ -43,11 +43,14 @@ class CustomerRepository:
     def next_code(self, delivery_type: str) -> str:
         """Return the next shared four-digit customer sequence with a type prefix."""
 
-        prefix = "LO" if delivery_type == "Local" else "CO"
+        prefix = "LC" if delivery_type == "Local" else "CR"
         with session_scope(self._session_factory) as session:
             codes = session.scalars(
                 select(Customer.code).where(
-                    Customer.code.like("LO____") | Customer.code.like("CO____")
+                    Customer.code.like("LC____")
+                    | Customer.code.like("CR____")
+                    | Customer.code.like("LO____")
+                    | Customer.code.like("CO____")
                 )
             )
             serials = [int(code[-4:]) for code in codes if len(code) == 6 and code[-4:].isdigit()]

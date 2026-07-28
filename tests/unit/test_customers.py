@@ -1,5 +1,5 @@
 from dataclasses import replace
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -139,16 +139,16 @@ def test_customer_codes_use_delivery_prefix_and_shared_sequence(customer_service
         )
     )
 
-    assert local.summary.code == "LO0001"
+    assert local.summary.code == "LC0001"
     assert local.summary.delivery_type == "Local"
-    assert courier.summary.code == "CO0002"
+    assert courier.summary.code == "CR0002"
     assert courier.summary.delivery_type == "Courier"
 
     changed = customer_service.update_customer(
         local.summary.id,
         replace(valid_customer(), code=local.summary.code, delivery_type="Courier"),
     )
-    assert changed.summary.code == "CO0003"
+    assert changed.summary.code == "CR0003"
 
 
 def test_other_transport_requires_and_stores_transport_name(customer_service) -> None:
@@ -225,9 +225,9 @@ def test_customer_creation_prepares_logical_storage_without_network_wait(
     )
     service = CustomerService(CustomerRepository(factory), storage_service=cloud)
 
-    created = service.create_customer(valid_customer("CO0001"))
+    created = service.create_customer(valid_customer("CR0001"))
 
-    assert created.storage_prefix == "customers/CO0001 - KMS TEXTILES - CHENNAI"
+    assert created.storage_prefix == "customers/CR0001 - KMS TEXTILES - CHENNAI"
     assert provider.online_checks == 0
     today = date.today().isoformat()
     assert service.customer_storage_dates(created.summary.id) == []
@@ -254,9 +254,53 @@ def test_customer_creation_prepares_logical_storage_without_network_wait(
         design,
     )
     assert uploaded.transfer_state == "queued"
+    assert uploaded.original_name == "CR0001 - DE1 - front-design.png"
+    second_design = tmp_path / "back-design.png"
+    second_design.write_bytes(b"more pixels")
+    second_uploaded = service.upload_customer_file(
+        created.summary.id,
+        today,
+        "Design",
+        second_design,
+    )
+    assert second_uploaded.original_name == "CR0001 - DE2 - back-design.png"
+    next_date = date.today() + timedelta(days=1)
+    next_date_name = service.create_customer_date_folder(created.summary.id, next_date)
+    next_design = tmp_path / "next-date-design.png"
+    next_design.write_bytes(b"next date pixels")
+    next_uploaded = service.upload_customer_file(
+        created.summary.id,
+        next_date_name,
+        "Design",
+        next_design,
+    )
+    assert next_uploaded.original_name == "CR0001 - DE3 - next-date-design.png"
+    assert service.search_all_customer_files("DE3")[0].id == next_uploaded.id
+    assert service.search_all_customer_files(next_date.strftime("%d-%m-%Y"))[0].id == (
+        next_uploaded.id
+    )
     cloud.synchronize_async().result(timeout=5)
     assert cloud.get(uploaded.id).transfer_state == "synced"
-    assert service.list_customer_files(created.summary.id, today, "Design")[0].id == uploaded.id
+    assert {
+        item.id for item in service.list_customer_files(created.summary.id, today, "Design")
+    } == {uploaded.id, second_uploaded.id}
+    other_customer = service.create_customer(
+        replace(
+            valid_customer("CR0002"),
+            name="Other Customer",
+            business_name="Other Business",
+            phone="9876543211",
+        )
+    )
+    service.create_customer_date_folder(other_customer.summary.id)
+    pasted = service.copy_customer_file(
+        uploaded.id,
+        other_customer.summary.id,
+        today,
+        "Design",
+    )
+    assert pasted.original_name == "CR0002 - DE1 - front-design.png"
+    assert service.search_all_customer_files("CR0002")[0].id == pasted.id
     assert service.customer_file_url(uploaded.id).startswith("file:")
     cloud.close()
     engine.dispose()

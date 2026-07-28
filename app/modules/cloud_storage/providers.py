@@ -7,6 +7,7 @@ from typing import BinaryIO, Protocol
 class StorageProvider(Protocol):
     def upload(self, object_key: str, source: BinaryIO, progress=None) -> None: ...
     def download(self, object_key: str, destination: BinaryIO, progress=None) -> None: ...
+    def delete(self, object_key: str) -> None: ...
     def is_online(self) -> bool: ...
     def signed_download_url(self, object_key: str, expires_in: int = 900) -> str: ...
 
@@ -25,6 +26,9 @@ class LocalStorageProvider:
     def download(self, object_key: str, destination: BinaryIO, progress=None) -> None:
         with self._path(object_key).open("rb") as source:
             _copy(source, destination, progress)
+
+    def delete(self, object_key: str) -> None:
+        self._path(object_key).unlink(missing_ok=True)
 
     def is_online(self) -> bool:
         return True
@@ -53,6 +57,9 @@ class S3CompatibleProvider:
 
     def download(self, object_key: str, destination: BinaryIO, progress=None) -> None:
         self.client.download_fileobj(self.bucket, object_key, destination, Callback=progress)
+
+    def delete(self, object_key: str) -> None:
+        self.client.delete_object(Bucket=self.bucket, Key=object_key)
 
     def is_online(self) -> bool:
         try:

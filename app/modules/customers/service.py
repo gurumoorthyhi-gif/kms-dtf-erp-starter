@@ -109,7 +109,7 @@ class CustomerService:
         if current is None:
             raise CustomerNotFoundError(f"Customer not found: {customer_id}")
         delivery_type = data.delivery_type.strip().title()
-        expected_prefix = "LO" if delivery_type == "Local" else "CO"
+        expected_prefix = "LC" if delivery_type == "Local" else "CR"
         if not data.code.startswith(expected_prefix):
             data = replace(data, code=self._repository.next_code(delivery_type))
         normalized = self._validate(data)
@@ -295,6 +295,35 @@ class CustomerService:
             return []
         return self._storage_service.list_prefix(f"{details.storage_prefix}/{date_name}/{folder}")
 
+    def search_all_customer_files(self, query: str):
+        self._require("customers.view")
+        if self._storage_service is None:
+            return []
+        cleaned = query.strip().casefold()
+        if not cleaned:
+            return []
+        variants = {cleaned, cleaned.replace("/", "-")}
+        date_match = re.fullmatch(r"([0-9]{2})-([0-9]{2})-([0-9]{4})", cleaned)
+        if date_match is not None:
+            variants.add(
+                f"{date_match.group(3)}-{date_match.group(2)}-{date_match.group(1)}"
+            )
+        return [
+            item
+            for item in self._storage_service.list_prefix("customers")
+            if any(
+                variant in item.original_name.casefold()
+                or variant in item.object_key.casefold()
+                for variant in variants
+            )
+        ]
+
+    def search_all_customer_images(self, source: Path):
+        self._require("customers.view")
+        if self._storage_service is None:
+            return []
+        return self._storage_service.search_similar_images(source, "customers")
+
     def upload_customer_file(
         self,
         customer_id: int,
@@ -309,10 +338,19 @@ class CustomerService:
         if self._storage_service is None:
             raise RuntimeError("File storage is unavailable")
         folder = self._storage_folder(folder_name)
+        prefix = f"{details.storage_prefix}/{date_name}/{folder}"
+        original_name = None
+        if folder_name == "Design":
+            original_name = self._next_design_filename(
+                details.summary.code,
+                details.storage_prefix,
+                source.name,
+            )
         record = self._storage_service.queue_upload(
             source,
-            f"{details.storage_prefix}/{date_name}/{folder}",
+            prefix,
             auto_sync=False,
+            original_name=original_name,
         )
         self._storage_service.synchronize_async()
         return record
@@ -328,6 +366,68 @@ class CustomerService:
         if self._storage_service is None:
             raise RuntimeError("File storage is unavailable")
         return self._storage_service.download(cloud_file_id, destination)
+
+    def copy_customer_file(
+        self,
+        cloud_file_id: int,
+        customer_id: int,
+        date_name: str,
+        folder_name: str,
+    ):
+        self._require("customers.manage")
+        details = self.ensure_customer_storage(customer_id)
+        if date_name not in self.customer_storage_dates(customer_id):
+            raise CustomerValidationError("Create this date folder before pasting files")
+        if self._storage_service is None:
+            raise RuntimeError("File storage is unavailable")
+        folder = self._storage_folder(folder_name)
+        prefix = f"{details.storage_prefix}/{date_name}/{folder}"
+        original_name = None
+        if folder_name == "Design":
+            source_record = self._storage_service.get(cloud_file_id)
+            source_name = re.sub(
+                r"^[A-Z0-9-]+ - DE[0-9]+ - ",
+                "",
+                source_record.original_name,
+                count=1,
+                flags=re.IGNORECASE,
+            )
+            original_name = self._next_design_filename(
+                details.summary.code,
+                details.storage_prefix,
+                source_name,
+            )
+        return self._storage_service.copy(
+            cloud_file_id,
+            prefix,
+            original_name=original_name,
+        )
+
+    def delete_customer_file(self, cloud_file_id: int) -> None:
+        self._require("customers.manage")
+        if self._storage_service is None:
+            raise RuntimeError("File storage is unavailable")
+        self._storage_service.delete(cloud_file_id)
+
+    def _next_design_filename(
+        self,
+        customer_code: str,
+        customer_storage_prefix: str,
+        source_name: str,
+    ) -> str:
+        if self._storage_service is None:
+            raise RuntimeError("File storage is unavailable")
+        pattern = re.compile(
+            rf"^{re.escape(customer_code)} - DE([0-9]+) - ",
+            re.IGNORECASE,
+        )
+        used_numbers = [
+            int(match.group(1))
+            for item in self._storage_service.list_prefix(customer_storage_prefix)
+            if (match := pattern.match(item.original_name)) is not None
+        ]
+        design_number = max(used_numbers, default=0) + 1
+        return f"{customer_code} - DE{design_number} - {source_name}"
 
     def add_file_reference(self, customer_id: int, label: str, stored_path: str) -> None:
         self._require("customers.manage")

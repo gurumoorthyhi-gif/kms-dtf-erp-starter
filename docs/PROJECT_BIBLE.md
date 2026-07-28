@@ -15,7 +15,7 @@ retention.
 Customer → Order → Artwork → Approval → Gangsheet → Production → Quality Check →
 Packing → Dispatch → Invoice → Payment → Reports
 
-Customers are the entry point. A customer uses a generated `LO` or `CO` prefix
+Customers are the entry point. A customer uses a generated `LC` or `CR` prefix
 with one shared four-digit sequence. The displayed identity is:
 
 `CODE - BUSINESS NAME - DISTRICT`

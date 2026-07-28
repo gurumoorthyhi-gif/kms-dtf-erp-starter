@@ -4,6 +4,7 @@ import hashlib
 import mimetypes
 from concurrent.futures import Future, ThreadPoolExecutor
 from pathlib import Path, PurePosixPath
+from tempfile import TemporaryDirectory
 from threading import Lock
 from uuid import uuid4
 
@@ -52,11 +53,19 @@ class CloudStorageService:
         prefix: str,
         *,
         auto_sync: bool = True,
+        original_name: str | None = None,
     ) -> CloudFile:
         source = source.resolve()
         prefix = self._validated_prefix(prefix)
         if not source.is_file():
             raise ValueError("Invalid source file or storage path")
+        display_name = original_name or source.name
+        if (
+            Path(display_name).name != display_name
+            or not display_name.strip()
+            or Path(display_name).suffix.casefold() != source.suffix.casefold()
+        ):
+            raise ValueError("Uploaded filename must preserve the source file format")
         key = f"{prefix}{uuid4().hex}{source.suffix.casefold()}"
         cache = self.cache_root / key
         cache.parent.mkdir(parents=True, exist_ok=True)
@@ -66,8 +75,8 @@ class CloudStorageService:
             record = CloudFile(
                 object_key=PurePosixPath(key).as_posix(),
                 local_path=str(cache),
-                original_name=source.name,
-                content_type=mimetypes.guess_type(source.name)[0] or "",
+                original_name=display_name,
+                content_type=mimetypes.guess_type(display_name)[0] or "",
                 size_bytes=cache.stat().st_size,
                 checksum_sha256=digest,
                 transfer_state="queued",
@@ -157,6 +166,44 @@ class CloudStorageService:
             raise
         return destination
 
+    def copy(
+        self,
+        cloud_file_id: int,
+        prefix: str,
+        *,
+        original_name: str | None = None,
+    ) -> CloudFile:
+        """Copy a managed file to another virtual folder and retain its display name."""
+
+        record = self.get(cloud_file_id)
+        with TemporaryDirectory(dir=self.cache_root) as temporary:
+            source = Path(temporary) / record.original_name
+            cached = Path(record.local_path)
+            if cached.is_file():
+                source.write_bytes(cached.read_bytes())
+            else:
+                self.download(cloud_file_id, source)
+            copied = self.queue_upload(
+                source,
+                prefix,
+                auto_sync=False,
+                original_name=original_name,
+            )
+        self.synchronize_async()
+        return copied
+
+    def delete(self, cloud_file_id: int) -> None:
+        """Delete the provider object, cached file, and local metadata."""
+
+        record = self.get(cloud_file_id)
+        if record.transfer_state == "synced":
+            self.provider.delete(record.object_key)
+        Path(record.local_path).unlink(missing_ok=True)
+        with session_scope(self.factory) as session:
+            stored = session.get(CloudFile, cloud_file_id)
+            if stored is not None:
+                session.delete(stored)
+
     def access_url(self, cloud_file_id: int, *, expires_in: int = 900) -> str:
         """Return a temporary provider URL after the caller's ERP permission check."""
 
@@ -214,6 +261,181 @@ class CloudStorageService:
             if not include_markers:
                 statement = statement.where(CloudFile.original_name != FOLDER_MARKER)
             return list(session.scalars(statement))
+
+    def search_similar_images(
+        self,
+        source: Path,
+        prefix: str = "customers",
+        *,
+        minimum_similarity: float = 0.75,
+    ) -> list[CloudFile]:
+        """Return cached images ranked by private, rotation-tolerant visual similarity."""
+
+        import cv2
+        import numpy as np
+
+        query = cv2.imread(str(source.resolve()), cv2.IMREAD_COLOR)
+        if query is None:
+            raise ValueError("Select a valid image file")
+
+        feature_detector = cv2.SIFT_create(
+            nfeatures=1200,
+            contrastThreshold=0.018,
+            edgeThreshold=14,
+        )
+
+        def perceptual_hash(image):
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+            resized = cv2.resize(gray, (17, 16), interpolation=cv2.INTER_AREA)
+            return resized[:, 1:] > resized[:, :-1]
+
+        def crops(image):
+            height, width = image.shape[:2]
+            results = [image]
+            for scale in (0.80, 0.65, 0.50):
+                crop_width, crop_height = int(width * scale), int(height * scale)
+                left, top = (width - crop_width) // 2, (height - crop_height) // 2
+                results.append(image[top : top + crop_height, left : left + crop_width])
+            shortest = min(height, width)
+            for scale in (0.95, 0.78, 0.62):
+                side = max(24, int(shortest * scale))
+                for vertical in (0.0, 0.25, 0.50, 0.75, 1.0):
+                    top = int((height - side) * vertical)
+                    for horizontal in (0.0, 0.5, 1.0):
+                        left = int((width - side) * horizontal)
+                        results.append(image[top : top + side, left : left + side])
+            return results
+
+        def features(image):
+            resized = cv2.resize(image, (160, 160), interpolation=cv2.INTER_AREA)
+            regions = crops(resized)
+            histograms = []
+            for region in regions:
+                hsv = cv2.cvtColor(region, cv2.COLOR_BGR2HSV)
+                histogram = cv2.calcHist(
+                    [hsv], [0, 1], None, [18, 16], [0, 180, 0, 256]
+                )
+                cv2.normalize(histogram, histogram)
+                histograms.append(histogram)
+            height, width = image.shape[:2]
+            scale = max(1.0, 720.0 / max(height, width))
+            enhanced = cv2.resize(
+                image,
+                (max(1, int(width * scale)), max(1, int(height * scale))),
+                interpolation=cv2.INTER_CUBIC,
+            )
+            gray = cv2.cvtColor(enhanced, cv2.COLOR_BGR2GRAY)
+            gray = cv2.createCLAHE(clipLimit=2.2, tileGridSize=(8, 8)).apply(gray)
+            blurred = cv2.GaussianBlur(gray, (0, 0), 1.1)
+            gray = cv2.addWeighted(gray, 1.45, blurred, -0.45, 0)
+            keypoints, descriptors = feature_detector.detectAndCompute(gray, None)
+            hashes = [
+                perceptual_hash(np.rot90(region, turns).copy())
+                for region in regions
+                for turns in range(4)
+            ]
+            return hashes, histograms, keypoints, descriptors
+
+        query_hashes, query_histogram, query_keypoints, query_descriptors = features(query)
+        query_digest = hashlib.sha256(source.resolve().read_bytes()).hexdigest()
+        matcher = cv2.BFMatcher(cv2.NORM_L2)
+        matches: list[tuple[float, CloudFile]] = []
+        image_suffixes = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
+        for record in self.list_prefix(prefix):
+            if Path(record.original_name).suffix.casefold() not in image_suffixes:
+                continue
+            cached = Path(record.local_path)
+            if not cached.is_file():
+                continue
+            candidate = cv2.imread(str(cached), cv2.IMREAD_COLOR)
+            if candidate is None:
+                continue
+            if record.checksum_sha256 == query_digest:
+                matches.append((1.0, record))
+                continue
+            (
+                candidate_hashes,
+                candidate_histogram,
+                candidate_keypoints,
+                candidate_descriptors,
+            ) = features(candidate)
+            pattern = max(
+                1.0 - float(np.count_nonzero(query_hash != candidate_hash)) / 256.0
+                for query_hash in query_hashes
+                for candidate_hash in candidate_hashes
+            )
+            color = float(
+                max(
+                    cv2.compareHist(
+                        query_region_histogram,
+                        candidate_region_histogram,
+                        cv2.HISTCMP_CORREL,
+                    )
+                    for query_region_histogram in query_histogram
+                    for candidate_region_histogram in candidate_histogram
+                )
+            )
+            feature_score = 0.0
+            verified_feature_score = 0.0
+            if query_descriptors is not None and candidate_descriptors is not None:
+                pairs = matcher.knnMatch(query_descriptors, candidate_descriptors, k=2)
+                good = [
+                    first
+                    for pair in pairs
+                    if len(pair) == 2
+                    for first, second in [pair]
+                    if first.distance < 0.72 * second.distance
+                ]
+                feature_base = max(
+                    12,
+                    int(min(len(query_keypoints), len(candidate_keypoints)) * 0.30),
+                )
+                feature_score = min(1.0, len(good) / feature_base)
+                if len(good) >= 6:
+                    query_points = np.float32(
+                        [query_keypoints[item.queryIdx].pt for item in good]
+                    ).reshape(-1, 1, 2)
+                    candidate_points = np.float32(
+                        [candidate_keypoints[item.trainIdx].pt for item in good]
+                    ).reshape(-1, 1, 2)
+                    _transform, mask = cv2.findHomography(
+                        query_points,
+                        candidate_points,
+                        cv2.RANSAC,
+                        5.0,
+                    )
+                    if mask is not None:
+                        inliers = int(mask.ravel().sum())
+                        inlier_ratio = inliers / len(good)
+                        if inliers >= 8 and inlier_ratio >= 0.55:
+                            verified_feature_score = min(
+                                1.0,
+                                (inliers / 18.0) * 0.65 + inlier_ratio * 0.35,
+                            )
+            if query_descriptors is None or candidate_descriptors is None:
+                similarity = (pattern * 0.72) + (max(0.0, color) * 0.28)
+            else:
+                similarity = (
+                    (pattern * 0.43)
+                    + (max(0.0, color) * 0.20)
+                    + (feature_score * 0.37)
+                )
+                if verified_feature_score > 0:
+                    similarity = max(
+                        similarity,
+                        0.76 + (verified_feature_score * 0.22),
+                    )
+            global_evidence_is_strong = (
+                pattern >= 0.84
+                and (color >= 0.48 or feature_score >= 0.38)
+            )
+            if (
+                similarity >= minimum_similarity
+                and (verified_feature_score > 0 or global_evidence_is_strong)
+            ):
+                matches.append((similarity, record))
+        matches.sort(key=lambda item: item[0], reverse=True)
+        return [record for _score, record in matches]
 
     def get(self, record_id: int) -> CloudFile:
         with session_scope(self.factory) as session:
