@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from tempfile import gettempdir
 
@@ -191,6 +191,7 @@ class CustomerFormDialog(QDialog):
         layout.setContentsMargins(18, 18, 18, 14)
         layout.setSpacing(14)
         self._customer_code = customer.summary.code if customer else ""
+        self._save_operation = None
 
         columns = QHBoxLayout()
         columns.setSpacing(18)
@@ -319,13 +320,36 @@ class CustomerFormDialog(QDialog):
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
         )
-        buttons.accepted.connect(self.accept)
+        self.buttons = buttons
+        buttons.accepted.connect(self._attempt_save)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
         if customer is not None:
             self._load(customer)
         self._update_courier_fields()
+
+    def set_save_operation(self, operation) -> None:
+        """Run persistence before accepting so invalid forms remain editable."""
+
+        self._save_operation = operation
+
+    def _attempt_save(self) -> None:
+        if self._save_operation is None:
+            self.accept()
+            return
+        try:
+            self._save_operation(self.customer_input())
+        except (CustomerValidationError, DuplicateCustomerCodeError) as error:
+            QMessageBox.warning(self, "Customer not saved", str(error))
+            return
+        except (InvalidOperation, ValueError):
+            QMessageBox.warning(self, "Customer not saved", "Preferred rate must be a valid amount")
+            self.preferred_rate.setFocus()
+            return
+        except CustomerSyncError as error:
+            QMessageBox.warning(self, "Google sync failed", str(error))
+        self.accept()
 
     def customer_input(self) -> CustomerInput:
         return CustomerInput(
@@ -485,22 +509,14 @@ class CustomerFolderDialog(QDialog):
             self.setWindowState(self.windowState() | Qt.WindowState.WindowMaximized)
 
         layout = QVBoxLayout(self)
-        heading_row = QHBoxLayout()
-        if embedded:
-            top_back = QPushButton("← Back to customers")
-            top_back.setObjectName("secondaryButton")
-            top_back.clicked.connect(self.back_requested.emit)
-            heading_row.addWidget(top_back)
-        heading = QLabel(details.summary.display_identifier)
-        heading.setObjectName("detailsTitle")
-        heading_row.addWidget(heading)
-        heading_row.addStretch()
-        subtitle = QLabel(
-            "Files are stored privately in Backblaze. Select a dated folder to view its files."
-        )
-        subtitle.setObjectName("cardBody")
-        layout.addLayout(heading_row)
-        layout.addWidget(subtitle)
+        self.heading = QLabel(details.summary.display_identifier)
+        self.heading.hide()
+        window_toolbar = QHBoxLayout()
+        window_toolbar.addStretch()
+        self.close_folder_button = QPushButton("Close")
+        self.close_folder_button.setObjectName("secondaryButton")
+        window_toolbar.addWidget(self.close_folder_button)
+        layout.addLayout(window_toolbar)
 
         self.workspace_splitter = QSplitter(Qt.Orientation.Horizontal)
         self.workspace_splitter.setChildrenCollapsible(False)
@@ -542,15 +558,6 @@ class CustomerFolderDialog(QDialog):
         self.browser_panel = browser
         browser_layout = QVBoxLayout(browser)
         browser_layout.setContentsMargins(0, 0, 0, 0)
-        date_toolbar = QHBoxLayout()
-        date_hint = QLabel("Create a date only when new customer work begins.")
-        date_hint.setObjectName("cardBody")
-        self.create_today_button = QPushButton("Create today's folder")
-        self.create_today_button.setObjectName("primaryButton")
-        date_toolbar.addWidget(date_hint)
-        date_toolbar.addStretch()
-        date_toolbar.addWidget(self.create_today_button)
-        browser_layout.addLayout(date_toolbar)
         browser_splitter = QSplitter(Qt.Orientation.Horizontal)
         self.browser_splitter = browser_splitter
         browser_splitter.setChildrenCollapsible(False)
@@ -566,6 +573,9 @@ class CustomerFolderDialog(QDialog):
         tree_toolbar.addWidget(self.tree_back_button)
         tree_toolbar.addWidget(self.tree_location, 1)
         tree_layout.addLayout(tree_toolbar)
+        self.create_today_button = QPushButton("Create Folders")
+        self.create_today_button.setObjectName("primaryButton")
+        tree_layout.addWidget(self.create_today_button, 0, Qt.AlignmentFlag.AlignLeft)
         self.tree = QTreeWidget()
         self.tree.setHeaderLabel("Customer folders")
         self.tree.setMinimumWidth(220)
@@ -587,13 +597,11 @@ class CustomerFolderDialog(QDialog):
         self.open_button = QPushButton("Open")
         self.download_button = QPushButton("Download")
         self.replace_button = QPushButton("Replace / new version")
-        close_button = QPushButton("Back to customers" if embedded else "Close")
         for button in (
             self.upload_button,
             self.open_button,
             self.download_button,
             self.replace_button,
-            close_button,
         ):
             button.setObjectName("secondaryButton")
             actions.addWidget(button)
@@ -618,7 +626,9 @@ class CustomerFolderDialog(QDialog):
         self.download_button.clicked.connect(self.download_file)
         self.replace_button.clicked.connect(self.replace_file)
         self.table.doubleClicked.connect(self.open_file)
-        close_button.clicked.connect(self.back_requested.emit if embedded else self.accept)
+        self.close_folder_button.clicked.connect(
+            self.back_requested.emit if embedded else self.accept
+        )
         self._populate_tree()
 
     def _populate_tree(self, selected_date: str | None = None) -> None:
@@ -634,9 +644,14 @@ class CustomerFolderDialog(QDialog):
         if self._tree_level == "customers":
             self.tree_location.setText("Customers")
             self.tree_back_button.setEnabled(True)
-            customer_item = QTreeWidgetItem([self._customer_label])
-            customer_item.setData(0, Qt.ItemDataRole.UserRole, ("navigate", "contents", ""))
-            self.tree.addTopLevelItem(customer_item)
+            for customer in self._service.list_customers("", active=True):
+                customer_item = QTreeWidgetItem([customer.display_identifier])
+                customer_item.setData(
+                    0,
+                    Qt.ItemDataRole.UserRole,
+                    ("customer", customer.id, customer.display_identifier),
+                )
+                self.tree.addTopLevelItem(customer_item)
             self._clear_file_view()
             return
         self.tree_location.setText(self._customer_label)
@@ -681,9 +696,19 @@ class CustomerFolderDialog(QDialog):
 
     def _open_tree_item(self, item: QTreeWidgetItem, _column: int) -> None:
         value = item.data(0, Qt.ItemDataRole.UserRole)
-        if not value or value[0] != "navigate":
+        if not value:
             return
-        self._tree_level = value[1]
+        if value[0] == "customer":
+            self._customer_id = value[1]
+            details = self._service.ensure_customer_storage(self._customer_id)
+            self._customer_label = details.summary.display_identifier
+            self.heading.setText(self._customer_label)
+            self.setWindowTitle(f"Customer folder — {self._customer_label}")
+            self._tree_level = "contents"
+        elif value[0] == "navigate":
+            self._tree_level = value[1]
+        else:
+            return
         self._populate_tree()
 
     def _clear_file_view(self) -> None:
@@ -1003,8 +1028,9 @@ class CustomersPage(QWidget):
 
     def create_customer(self) -> None:
         dialog = CustomerFormDialog(parent=self)
+        dialog.set_save_operation(self._service.create_customer)
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            self._save(lambda: self._service.create_customer(dialog.customer_input()))
+            self.refresh()
 
     def edit_selected(self) -> None:
         customer_id = self.selected_customer_id()
@@ -1012,8 +1038,11 @@ class CustomersPage(QWidget):
             return
         customer = self._service.get_customer(customer_id)
         dialog = CustomerFormDialog(customer, self)
+        dialog.set_save_operation(
+            lambda customer_input: self._service.update_customer(customer_id, customer_input)
+        )
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            self._save(lambda: self._service.update_customer(customer_id, dialog.customer_input()))
+            self.refresh()
 
     def view_selected(self) -> None:
         customer_id = self.selected_customer_id()

@@ -4,8 +4,10 @@ from types import SimpleNamespace
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPixmap
+from PySide6.QtWidgets import QDialog, QDialogButtonBox
 
 from app.modules.customers import CustomerSummary
+from app.modules.customers import CustomerValidationError
 from app.ui.pages import CustomerFolderDialog, CustomerFormDialog, CustomersPage
 
 
@@ -79,6 +81,38 @@ def test_customer_form_builds_typed_input(qtbot) -> None:
     assert data.shipping_address.landmark == "Near Central Station"
     assert data.shipping_address.district == "Chennai"
     assert data.shipping_address.state == "Tamil Nadu"
+
+
+def test_customer_form_stays_open_when_save_validation_fails(qtbot, monkeypatch) -> None:
+    dialog = CustomerFormDialog()
+    qtbot.addWidget(dialog)
+    dialog.show()
+    warnings: list[tuple[str, str]] = []
+    attempts = 0
+
+    def save_customer(data) -> None:
+        nonlocal attempts
+        attempts += 1
+        if not data.name.strip():
+            raise CustomerValidationError("Customer name is required")
+
+    monkeypatch.setattr(
+        "app.ui.pages.customers.QMessageBox.warning",
+        lambda _parent, title, message: warnings.append((title, message)),
+    )
+    dialog.set_save_operation(save_customer)
+
+    dialog.buttons.button(QDialogButtonBox.StandardButton.Save).click()
+
+    assert dialog.isVisible()
+    assert dialog.result() != QDialog.DialogCode.Accepted
+    assert warnings == [("Customer not saved", "Customer name is required")]
+
+    dialog.name.setText("Corrected Customer")
+    dialog.buttons.button(QDialogButtonBox.StandardButton.Save).click()
+
+    assert attempts == 2
+    assert dialog.result() == QDialog.DialogCode.Accepted
 
 
 def test_address_state_field_provides_india_prefix_completion(qtbot) -> None:
@@ -208,8 +242,71 @@ def test_customer_folder_tree_can_go_back_to_customer_and_main_folder(qtbot) -> 
     assert dialog.tree.topLevelItem(0).text(0) == "2026-07-28"
 
     dialog.tree_back_button.click()
-    assert dialog.tree.topLevelItem(0).text(0) == "CO0001 - KMS - TIRUPUR"
+    assert dialog.tree.topLevelItem(0).text(0) == "CUS-001 - BUSINESS ONE - CHENNAI"
 
     dialog.tree_back_button.click()
     assert dialog.tree.topLevelItem(0).text(0) == "Customers"
     assert dialog.tree_back_button.isEnabled() is False
+
+
+def test_customer_folder_tree_lists_and_opens_other_customers(qtbot) -> None:
+    first = CustomerSummary(
+        id=1,
+        code="CO0001",
+        display_identifier="CO0001 - KMS - TIRUPUR",
+        name="KMS",
+        business_name="KMS",
+        phone="9876543210",
+        whatsapp_number="",
+        delivery_type="Local",
+        preferred_courier="",
+        other_transport_name="",
+        preferred_rate=Decimal("0"),
+        email=None,
+        is_active=True,
+    )
+    second = CustomerSummary(
+        id=2,
+        code="CO0002",
+        display_identifier="CO0002 - SECOND CUSTOMER - CHENNAI",
+        name="Second Customer",
+        business_name="Second Customer",
+        phone="9876543211",
+        whatsapp_number="",
+        delivery_type="Local",
+        preferred_courier="",
+        other_transport_name="",
+        preferred_rate=Decimal("0"),
+        email=None,
+        is_active=True,
+    )
+
+    class MultiCustomerFolderService:
+        def list_customers(self, query="", *, active=True):
+            return [first, second]
+
+        def ensure_customer_storage(self, customer_id):
+            summary = first if customer_id == 1 else second
+            return SimpleNamespace(summary=summary)
+
+        def customer_storage_dates(self, customer_id):
+            return ["2026-07-28"] if customer_id == 1 else ["2026-07-29"]
+
+        def list_customer_files(self, customer_id, date_name, folder_name):
+            return []
+
+    dialog = CustomerFolderDialog(MultiCustomerFolderService(), 1)  # type: ignore[arg-type]
+    qtbot.addWidget(dialog)
+
+    dialog.tree_back_button.click()
+
+    assert dialog.tree.topLevelItemCount() == 2
+    assert dialog.tree.topLevelItem(0).text(0) == first.display_identifier
+    assert dialog.tree.topLevelItem(1).text(0) == second.display_identifier
+
+    second_item = dialog.tree.topLevelItem(1)
+    dialog._open_tree_item(second_item, 0)
+
+    assert dialog._customer_id == 2
+    assert dialog.heading.text() == second.display_identifier
+    assert dialog.tree.topLevelItem(0).text(0) == "2026-07-29"
