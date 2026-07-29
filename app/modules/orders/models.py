@@ -23,6 +23,7 @@ class Order(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     order_number: Mapped[str] = mapped_column(String(30), unique=True, index=True)
     customer_id: Mapped[int] = mapped_column(ForeignKey("customers.id"), index=True)
+    order_type: Mapped[str] = mapped_column(String(30), default="DTF")
     status: Mapped[str] = mapped_column(String(40), index=True)
     priority: Mapped[str] = mapped_column(String(20), default="Normal")
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)

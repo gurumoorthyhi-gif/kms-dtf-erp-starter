@@ -216,6 +216,7 @@ class MainWindow(QMainWindow):
                 product_service,
                 auto_refresh=False,
             )
+            self.orders_page.order_changed.connect(self.dashboard_page.refresh)
             self.router.register_page("orders", self.orders_page)
         self.sidebar.set_page_visible("orders", self.orders_page is not None)
         self.artwork_page: ArtworkLibraryPage | None = None
