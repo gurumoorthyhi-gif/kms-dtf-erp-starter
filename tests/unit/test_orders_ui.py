@@ -69,6 +69,7 @@ def test_order_panel_shows_full_customer_and_quick_status_selection(qtbot) -> No
 
     assert changed == [(4, "Printing")]
     assert changes == [True]
+    assert status.findText("Canceled") >= 0
 
 
 def test_order_panel_hides_reverse_status_choices(qtbot) -> None:
@@ -98,5 +99,7 @@ def test_order_panel_hides_reverse_status_choices(qtbot) -> None:
     assert [status.itemText(index) for index in range(status.count())] == [
         "Printing",
         "Completed",
+        "Canceled",
     ]
     assert status.findText("Designing") == -1
+    assert status.findText("Canceled") >= 0

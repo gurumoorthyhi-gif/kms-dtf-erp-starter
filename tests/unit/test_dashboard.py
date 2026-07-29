@@ -85,7 +85,7 @@ def test_dashboard_metrics_count_live_order_statuses(tmp_path: Path) -> None:
         session.add(customer)
         session.flush()
         for sequence, status in enumerate(
-            ("Draft", "Designing", "Printing", "Completed", "Completed"),
+            ("Draft", "Designing", "Printing", "Completed", "Completed", "Cancelled"),
             start=1,
         ):
             session.add(

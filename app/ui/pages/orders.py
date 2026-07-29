@@ -245,16 +245,22 @@ class OrdersPage(QWidget):
             ):
                 self.table.setItem(row, column, QTableWidgetItem(value))
             status = QComboBox()
-            if order.status in QUICK_ORDER_STATUSES:
+            if order.status == "Cancelled":
+                status.addItem("Canceled", "Cancelled")
+                status.setEnabled(False)
+            elif order.status in QUICK_ORDER_STATUSES:
                 current_index = QUICK_ORDER_STATUSES.index(order.status)
                 status.addItem(order.status, order.status)
                 for available in QUICK_ORDER_STATUSES[current_index + 1 :]:
                     status.addItem(available, available)
                 if order.status == "Completed":
                     status.setEnabled(False)
+                else:
+                    status.addItem("Canceled", "Cancelled")
             else:
                 status.addItem("Select status", "")
                 status.addItems(QUICK_ORDER_STATUSES)
+                status.addItem("Canceled", "Cancelled")
             status.currentIndexChanged.connect(
                 lambda _index, order_id=order.id, control=status: self._set_quick_status(
                     order_id,
@@ -265,7 +271,7 @@ class OrdersPage(QWidget):
 
     def _set_quick_status(self, order_id: int, control: QComboBox) -> None:
         status = control.currentData() or control.currentText()
-        if status not in QUICK_ORDER_STATUSES:
+        if status not in (*QUICK_ORDER_STATUSES, "Cancelled"):
             return
         try:
             self.service.change_status(order_id, status)

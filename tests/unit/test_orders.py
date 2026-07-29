@@ -136,6 +136,17 @@ def test_quick_order_status_cannot_be_reversed(orders) -> None:
         service.change_status(completed.summary.id, "Printing")
 
 
+def test_canceled_order_status_is_terminal(orders) -> None:
+    service, customer_id, _product_id, _ = orders
+    order = service.create_order(OrderInput(customer_id=customer_id, order_type="DTF"))
+
+    canceled = service.change_status(order.summary.id, "Cancelled")
+
+    assert canceled.summary.status == "Cancelled"
+    with pytest.raises(ValueError, match="cannot be changed"):
+        service.change_status(canceled.summary.id, "Designing")
+
+
 def test_all_required_statuses_are_available() -> None:
     assert len(ORDER_STATUSES) == 16
     assert ORDER_STATUSES[0] == "Draft"

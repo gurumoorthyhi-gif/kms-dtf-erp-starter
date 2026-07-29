@@ -59,7 +59,14 @@ class DashboardRepository:
                     select(Order.status, func.count(Order.id)).group_by(Order.status)
                 ).all()
             )
-            total = session.scalar(select(func.count(Order.id)).select_from(Order)) or 0
+            total = (
+                session.scalar(
+                    select(func.count(Order.id))
+                    .select_from(Order)
+                    .where(Order.status != "Cancelled")
+                )
+                or 0
+            )
         return DashboardMetrics(
             todays_orders=int(total),
             pending_orders=int(counts.get("Designing", 0)),

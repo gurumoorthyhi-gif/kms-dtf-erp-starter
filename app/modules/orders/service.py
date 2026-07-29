@@ -109,8 +109,14 @@ class OrderService:
         current = self.repository.get(order_id)
         if current is None:
             raise LookupError(f"Order not found: {order_id}")
+        if current.status == "Cancelled":
+            raise ValueError("Canceled order status cannot be changed")
         if current.status in QUICK_STATUS_PROGRESSION:
-            if (
+            if status == "Cancelled" and current.status != "Completed":
+                pass
+            elif status == "Cancelled":
+                raise ValueError("Completed order cannot be canceled")
+            elif (
                 status not in QUICK_STATUS_PROGRESSION
                 or QUICK_STATUS_PROGRESSION.index(status)
                 <= QUICK_STATUS_PROGRESSION.index(current.status)
