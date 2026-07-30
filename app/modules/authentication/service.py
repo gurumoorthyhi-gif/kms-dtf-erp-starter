@@ -48,6 +48,19 @@ class AuthenticationService:
                 permission_codes,
             )
 
+    def start_development_session(self) -> AuthenticatedUser:
+        """Start a non-persistent, full-access identity for local development only."""
+
+        user = AuthenticatedUser(
+            id=None,
+            username="developer",
+            full_name="Development Mode",
+            roles=frozenset({"Administrator"}),
+            permissions=frozenset(PERMISSIONS),
+        )
+        self.current_session.login(user)
+        return user
+
     def create_administrator(
         self,
         *,

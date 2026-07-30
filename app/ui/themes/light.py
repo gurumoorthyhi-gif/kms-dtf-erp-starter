@@ -1,50 +1,54 @@
 """Light glassmorphism theme for the application shell."""
 
 APP_STYLESHEET = """
-QMainWindow, QWidget#applicationRoot {
-    background: #EEF3FF;
+QMainWindow {
+    background: #101A47;
     color: #18213A;
     font-family: "Segoe UI";
     font-size: 14px;
 }
 
-QFrame#sidebar {
-    background: rgba(255, 255, 255, 232);
-    border: 1px solid rgba(255, 255, 255, 185);
-    border-radius: 22px;
+QWidget#applicationRoot {
+    background: transparent;
 }
 
-QLabel#brandName {
-    color: #29345C;
-    font-size: 16px;
+QFrame#glassSidebar, QWidget#sidebarContent, QScrollArea#sidebarScroll,
+QScrollArea#sidebarScroll > QWidget > QWidget {
+    background: transparent;
+    border: 0;
+}
+
+QFrame#glassBrand {
+    background: rgba(87, 93, 168, 44);
+    border: 1px solid rgba(255, 255, 255, 35);
+    border-radius: 15px;
+}
+
+QLabel#glassBrandName {
+    color: rgba(255, 255, 255, 242);
+    font-size: 15px;
     font-weight: 700;
 }
 
-QToolButton#navigationButton {
+QFrame#glassDivider {
+    background: rgba(255, 255, 255, 31);
+    border: 0;
+}
+
+QToolButton#glassNavigationButton {
     background: transparent;
     border: 0;
-    border-radius: 14px;
-    color: #687292;
-    font-size: 14px;
-    font-weight: 600;
-    padding: 8px 12px;
-    text-align: left;
+    padding: 0;
 }
 
-QToolButton#navigationButton:hover {
-    background: rgba(108, 92, 231, 20);
-    color: #4B55A5;
+QToolButton#themeToggleButton {
+    background: transparent;
+    border: 0;
+    border-radius: 23px;
 }
 
-QToolButton#navigationButton[active="true"] {
-    background: qlineargradient(
-        x1: 0, y1: 0, x2: 1, y2: 1,
-        stop: 0 rgba(108, 92, 231, 45),
-        stop: 0.58 rgba(79, 124, 255, 38),
-        stop: 1 rgba(66, 211, 255, 30)
-    );
-    border: 1px solid rgba(108, 92, 231, 62);
-    color: #5147B8;
+QToolButton#themeToggleButton:hover {
+    background: rgba(110, 120, 220, 35);
 }
 
 QFrame#topBar, QFrame#glassCard {
@@ -259,6 +263,70 @@ QLabel#dashboardError {
     border-radius: 10px;
     color: #B43869;
     padding: 8px 12px;
+}
+
+QLabel#studioTitle {
+    color: #EEF4FF;
+    font-size: 20px;
+    font-weight: 700;
+    padding-right: 8px;
+}
+
+QGroupBox#studioPanel {
+    background: rgba(31, 46, 88, 205);
+    border: 1px solid rgba(122, 151, 225, 80);
+    border-radius: 16px;
+    color: #DCE8FF;
+    font-weight: 700;
+    margin-top: 10px;
+    padding-top: 10px;
+}
+
+QGroupBox#studioPanel::title {
+    subcontrol-origin: margin;
+    left: 12px;
+    padding: 0 5px;
+}
+
+QGraphicsView#artworkStudioCanvas {
+    background: #FFFFFF;
+    border: 1px solid rgba(130, 154, 220, 95);
+    border-radius: 16px;
+}
+
+QListWidget#studioDesignList {
+    background: rgba(22, 35, 72, 180);
+    border: 1px solid rgba(125, 151, 220, 65);
+    border-radius: 11px;
+    color: #E9F1FF;
+    padding: 5px;
+}
+
+QPushButton#studioPrimaryButton, QPushButton#studioSecondaryButton {
+    min-height: 34px;
+    border-radius: 10px;
+    color: white;
+    font-weight: 600;
+    padding: 0 11px;
+}
+
+QPushButton#studioPrimaryButton {
+    background: qlineargradient(
+        x1: 0, y1: 0, x2: 1, y2: 0,
+        stop: 0 #7758E8, stop: 0.55 #4F7CFF, stop: 1 #36BEEB
+    );
+    border: 1px solid rgba(255, 255, 255, 45);
+}
+
+QPushButton#studioSecondaryButton {
+    background: rgba(91, 113, 185, 70);
+    border: 1px solid rgba(160, 180, 235, 65);
+}
+
+QLabel#studioMetric {
+    color: #CFE2FF;
+    font-size: 15px;
+    font-weight: 700;
 }
 
 QFrame#customerToolbar {

@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -9,6 +9,7 @@ from app.database import (
     session_scope,
 )
 from app.modules.authentication.models import ActivityLog
+from app.modules.customers.models import Customer
 from app.modules.dashboard import (
     DashboardMetrics,
     DashboardOverview,
@@ -17,6 +18,7 @@ from app.modules.dashboard import (
     DashboardService,
     EmptyDashboardRepository,
 )
+from app.modules.orders.models import Order
 
 
 class RecordingDashboardRepository(EmptyDashboardRepository):
@@ -71,6 +73,45 @@ def test_dashboard_repository_reads_existing_activity_only(tmp_path: Path) -> No
     assert overview.metrics == DashboardMetrics()
     assert len(overview.recent_activity) == 1
     assert overview.recent_activity[0].action == "login.succeeded"
+    engine.dispose()
+
+
+def test_dashboard_metrics_count_live_order_statuses(tmp_path: Path) -> None:
+    engine = create_database_engine(f"sqlite:///{tmp_path / 'dashboard-orders.db'}")
+    Base.metadata.create_all(engine)
+    factory = create_session_factory(engine)
+    with session_scope(factory) as session:
+        customer = Customer(code="CR0001", name="Customer", phone="9876543210")
+        session.add(customer)
+        session.flush()
+        for sequence, status in enumerate(
+            ("Draft", "Designing", "Printing", "Completed", "Completed", "Cancelled"),
+            start=1,
+        ):
+            session.add(
+                Order(
+                    order_number=f"KMS-20260729-{sequence:04d}",
+                    customer_id=customer.id,
+                    order_type="DTF",
+                    status=status,
+                    priority="Normal",
+                    due_date=date(2026, 7, 30),
+                    notes="",
+                    subtotal=Decimal("0"),
+                    discount=Decimal("0"),
+                    tax=Decimal("0"),
+                    total=Decimal("0"),
+                    advance=Decimal("0"),
+                    balance=Decimal("0"),
+                )
+            )
+
+    metrics = DashboardService(DashboardRepository(factory)).get_overview().metrics
+
+    assert metrics.todays_orders == 5
+    assert metrics.pending_orders == 1
+    assert metrics.in_production == 1
+    assert metrics.completed_jobs == 2
     engine.dispose()
 
 

@@ -1,13 +1,11 @@
-"""Order list, creation, details, and status timeline UI."""
+"""Order intake, customer information, details, and status timeline UI."""
 
 from __future__ import annotations
 
 from datetime import date
-from decimal import Decimal, InvalidOperation
 
-from PySide6.QtCore import QDate, Qt
+from PySide6.QtCore import QDate, Qt, Signal
 from PySide6.QtWidgets import (
-    QCheckBox,
     QComboBox,
     QDateEdit,
     QDialog,
@@ -30,64 +28,54 @@ from PySide6.QtWidgets import (
 from app.modules.customers import CustomerService
 from app.modules.orders import (
     ORDER_STATUSES,
+    ORDER_TYPES,
     PRIORITIES,
     OrderDetails,
     OrderInput,
-    OrderItemInput,
     OrderService,
 )
 from app.modules.products import ProductService
+
+QUICK_ORDER_STATUSES = ("Designing", "Printing", "Completed")
 
 
 class OrderCreationDialog(QDialog):
     def __init__(
         self,
         customer_service: CustomerService,
-        product_service: ProductService,
+        product_service: ProductService | None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
+        del product_service
         self.setWindowTitle("New order")
-        self.resize(620, 620)
-        self._items: list[OrderItemInput] = []
+        self.resize(560, 430)
         layout = QVBoxLayout(self)
         form = QFormLayout()
+
         self.customer = QComboBox()
         for customer in customer_service.list_customers():
-            self.customer.addItem(f"{customer.code} - {customer.name}", customer.id)
+            self.customer.addItem(customer.display_identifier, customer.id)
+
+        self.order_type = QComboBox()
+        self.order_type.addItems(ORDER_TYPES)
         self.priority = QComboBox()
         self.priority.addItems(PRIORITIES)
         self.priority.setCurrentText("Normal")
-        self.has_due_date = QCheckBox("Set due date")
         self.due_date = QDateEdit(QDate.currentDate())
         self.due_date.setCalendarPopup(True)
-        self.due_date.setEnabled(False)
-        self.has_due_date.toggled.connect(self.due_date.setEnabled)
-        self.advance = QLineEdit("0.00")
-        form.addRow("Customer", self.customer)
-        form.addRow("Priority", self.priority)
-        form.addRow(self.has_due_date, self.due_date)
-        form.addRow("Advance", self.advance)
-        layout.addLayout(form)
 
-        item_row = QHBoxLayout()
-        self.product = QComboBox()
-        for product in product_service.list_products():
-            self.product.addItem(f"{product.code} - {product.name}", product.id)
-        self.quantity = QLineEdit("1")
-        add_item = QPushButton("Add item")
-        item_row.addWidget(self.product, 1)
-        item_row.addWidget(self.quantity)
-        item_row.addWidget(add_item)
-        layout.addLayout(item_row)
-        self.item_list = QListWidget()
-        layout.addWidget(self.item_list, 1)
-        add_item.clicked.connect(self.add_item)
+        form.addRow("Customer", self.customer)
+        form.addRow("Product type", self.order_type)
+        form.addRow("Priority", self.priority)
+        form.addRow("Due date", self.due_date)
+        layout.addLayout(form)
 
         self.notes = QTextEdit()
         self.notes.setPlaceholderText("Order notes")
-        self.notes.setMaximumHeight(90)
+        self.notes.setMaximumHeight(100)
         layout.addWidget(self.notes)
+        layout.addStretch()
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel
         )
@@ -95,43 +83,19 @@ class OrderCreationDialog(QDialog):
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
 
-    def add_item(self) -> None:
-        product_id = self.product.currentData()
-        try:
-            quantity = Decimal(self.quantity.text())
-        except InvalidOperation:
-            QMessageBox.warning(self, "Invalid quantity", "Enter a valid numeric quantity.")
-            return
-        if product_id is None or quantity <= 0:
-            QMessageBox.warning(self, "Invalid item", "Select a product and positive quantity.")
-            return
-        self._items.append(OrderItemInput(int(product_id), quantity))
-        self.item_list.addItem(f"{self.product.currentText()} × {quantity}")
-
     def order_input(self) -> OrderInput:
         selected_date = self.due_date.date()
-        due_date = (
-            date(selected_date.year(), selected_date.month(), selected_date.day())
-            if self.has_due_date.isChecked()
-            else None
-        )
         return OrderInput(
             customer_id=int(self.customer.currentData()),
-            items=tuple(self._items),
-            advance=Decimal(self.advance.text()),
-            due_date=due_date,
+            order_type=self.order_type.currentText(),
+            due_date=date(selected_date.year(), selected_date.month(), selected_date.day()),
             priority=self.priority.currentText(),
             notes=self.notes.toPlainText(),
         )
 
     def _validate_and_accept(self) -> None:
-        if not self._items:
-            QMessageBox.warning(self, "Missing items", "Add at least one item to the order.")
-            return
-        try:
-            Decimal(self.advance.text())
-        except InvalidOperation:
-            QMessageBox.warning(self, "Invalid advance", "Enter a valid advance amount.")
+        if self.customer.currentData() is None:
+            QMessageBox.warning(self, "Missing customer", "Select a customer.")
             return
         self.accept()
 
@@ -147,7 +111,7 @@ class OrderDetailsDialog(QDialog):
         self.service = service
         self.details = details
         self.setWindowTitle(details.summary.order_number)
-        self.resize(700, 680)
+        self.resize(700, 600)
         self.root_layout = QVBoxLayout(self)
         self._render()
 
@@ -158,30 +122,16 @@ class OrderDetailsDialog(QDialog):
         self.root_layout.addWidget(title)
         form = QFormLayout()
         for label, value in (
+            ("Customer No.", summary.customer_code),
+            ("Customer", summary.customer_name),
+            ("Product type", summary.order_type),
             ("Status", summary.status),
             ("Priority", summary.priority),
             ("Due date", summary.due_date.isoformat() if summary.due_date else "Not set"),
-            ("Subtotal", str(self.details.subtotal)),
-            ("Discount", str(self.details.discount)),
-            ("Tax", str(self.details.tax)),
-            ("Total", str(summary.total)),
-            ("Advance", str(self.details.advance)),
-            ("Balance", str(summary.balance)),
             ("Notes", self.details.notes or "—"),
         ):
             form.addRow(label, QLabel(value))
         self.root_layout.addLayout(form)
-
-        self.root_layout.addWidget(QLabel("Items"))
-        items = QTableWidget(len(self.details.items), 4)
-        items.setHorizontalHeaderLabels(["Description", "Quantity", "Unit price", "Total"])
-        items.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        for row, item in enumerate(self.details.items):
-            for column, value in enumerate(
-                (item.description, str(item.quantity), str(item.unit_price), str(item.total))
-            ):
-                items.setItem(row, column, QTableWidgetItem(value))
-        self.root_layout.addWidget(items)
 
         self.root_layout.addWidget(QLabel("Status timeline"))
         timeline = QListWidget()
@@ -222,6 +172,8 @@ class OrderDetailsDialog(QDialog):
 
 
 class OrdersPage(QWidget):
+    order_changed = Signal()
+
     def __init__(
         self,
         service: OrderService,
@@ -244,9 +196,9 @@ class OrdersPage(QWidget):
         toolbar.addWidget(self.search, 1)
         toolbar.addWidget(new_order)
         layout.addLayout(toolbar)
-        self.table = QTableWidget(0, 7)
+        self.table = QTableWidget(0, 4)
         self.table.setHorizontalHeaderLabels(
-            ["Order", "Customer", "Status", "Priority", "Due date", "Total", "Balance"]
+            ["Order", "Customer", "Product type", "Status"]
         )
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -261,6 +213,24 @@ class OrdersPage(QWidget):
         if auto_refresh:
             self.refresh()
 
+    def _refresh_legacy(self) -> None:
+        orders = self.service.list_orders(self.search.text())
+        self.order_ids = [order.id for order in orders]
+        self.table.setRowCount(len(orders))
+        for row, order in enumerate(orders):
+            for column, value in enumerate(
+                (
+                    order.order_number,
+                    order.customer_code,
+                    order.customer_name,
+                    order.order_type,
+                    order.status,
+                    order.priority,
+                    order.due_date.isoformat() if order.due_date else "—",
+                )
+            ):
+                self.table.setItem(row, column, QTableWidgetItem(value))
+
     def refresh(self) -> None:
         orders = self.service.list_orders(self.search.text())
         self.order_ids = [order.id for order in orders]
@@ -269,15 +239,46 @@ class OrdersPage(QWidget):
             for column, value in enumerate(
                 (
                     order.order_number,
-                    order.customer_name,
-                    order.status,
-                    order.priority,
-                    order.due_date.isoformat() if order.due_date else "—",
-                    str(order.total),
-                    str(order.balance),
+                    order.customer_display_identifier,
+                    order.order_type,
                 )
             ):
                 self.table.setItem(row, column, QTableWidgetItem(value))
+            status = QComboBox()
+            if order.status == "Cancelled":
+                status.addItem("Canceled", "Cancelled")
+                status.setEnabled(False)
+            elif order.status in QUICK_ORDER_STATUSES:
+                current_index = QUICK_ORDER_STATUSES.index(order.status)
+                status.addItem(order.status, order.status)
+                for available in QUICK_ORDER_STATUSES[current_index + 1 :]:
+                    status.addItem(available, available)
+                if order.status == "Completed":
+                    status.setEnabled(False)
+                else:
+                    status.addItem("Canceled", "Cancelled")
+            else:
+                status.addItem("Select status", "")
+                status.addItems(QUICK_ORDER_STATUSES)
+                status.addItem("Canceled", "Cancelled")
+            status.currentIndexChanged.connect(
+                lambda _index, order_id=order.id, control=status: self._set_quick_status(
+                    order_id,
+                    control,
+                )
+            )
+            self.table.setCellWidget(row, 3, status)
+
+    def _set_quick_status(self, order_id: int, control: QComboBox) -> None:
+        status = control.currentData() or control.currentText()
+        if status not in (*QUICK_ORDER_STATUSES, "Cancelled"):
+            return
+        try:
+            self.service.change_status(order_id, status)
+        except (ValueError, LookupError) as error:
+            QMessageBox.warning(self, "Status not updated", str(error))
+            return
+        self.order_changed.emit()
 
     def create_order(self) -> None:
         dialog = OrderCreationDialog(self.customer_service, self.product_service, self)
@@ -289,6 +290,7 @@ class OrdersPage(QWidget):
             QMessageBox.warning(self, "Order not created", str(error))
             return
         self.refresh()
+        self.order_changed.emit()
         OrderDetailsDialog(self.service, details, self).exec()
 
     def view_selected(self) -> None:
@@ -298,3 +300,4 @@ class OrdersPage(QWidget):
         details = self.service.get_order(self.order_ids[row])
         OrderDetailsDialog(self.service, details, self).exec()
         self.refresh()
+        self.order_changed.emit()

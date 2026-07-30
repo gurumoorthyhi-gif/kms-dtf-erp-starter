@@ -11,10 +11,11 @@ from app.modules.orders.schemas import (
     OrderSummary,
     StatusHistoryItem,
 )
-from app.modules.orders.service import ORDER_STATUSES, PRIORITIES, OrderService
+from app.modules.orders.service import ORDER_STATUSES, ORDER_TYPES, PRIORITIES, OrderService
 
 __all__ = [
     "ORDER_STATUSES",
+    "ORDER_TYPES",
     "PRIORITIES",
     "Order",
     "OrderDetails",

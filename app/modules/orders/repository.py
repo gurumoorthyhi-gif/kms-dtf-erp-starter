@@ -36,6 +36,7 @@ class OrderRepository:
         *,
         order_number: str,
         customer_id: int,
+        order_type: str,
         items: tuple[PricedOrderItem, ...],
         status: str,
         priority: str,
@@ -53,6 +54,7 @@ class OrderRepository:
             order = Order(
                 order_number=order_number,
                 customer_id=customer_id,
+                order_type=order_type,
                 status=status,
                 priority=priority,
                 due_date=due_date,

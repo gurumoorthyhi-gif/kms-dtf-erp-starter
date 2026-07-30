@@ -2,6 +2,8 @@
 
 from pathlib import Path
 
+from PySide6.QtCore import QUrl
+from PySide6.QtGui import QDesktopServices
 from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
@@ -27,11 +29,13 @@ class CloudStoragePage(QWidget):
         self.prefix = QComboBox()
         self.prefix.addItems(ALLOWED_PREFIXES)
         upload, sync = QPushButton("Upload file"), QPushButton("Synchronize")
+        self.open_button = QPushButton("Open selected")
         self.progress = QProgressBar()
         self.progress.setRange(0, 100)
         tools.addWidget(self.prefix)
         tools.addWidget(upload)
         tools.addWidget(sync)
+        tools.addWidget(self.open_button)
         tools.addWidget(self.progress)
         layout.addLayout(tools)
         self.table = QTableWidget(0, 6)
@@ -42,6 +46,7 @@ class CloudStoragePage(QWidget):
         layout.addWidget(self.table)
         upload.clicked.connect(self.upload)
         sync.clicked.connect(self.synchronize)
+        self.open_button.clicked.connect(self.open_selected)
         if auto_refresh:
             self.refresh()
 
@@ -60,8 +65,16 @@ class CloudStoragePage(QWidget):
         self.progress.setValue(100)
         self.refresh()
 
+    def open_selected(self) -> None:
+        row = self.table.currentRow()
+        if row < 0 or row >= len(getattr(self, "_records", ())):
+            return
+        url = self.service.access_url(self._records[row].id)
+        QDesktopServices.openUrl(QUrl(url))
+
     def refresh(self) -> None:
         files = self.service.list_files()
+        self._records = files
         self.table.setRowCount(len(files))
         for row, item in enumerate(files):
             values = (

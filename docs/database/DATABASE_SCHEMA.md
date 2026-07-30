@@ -1,59 +1,160 @@
 # Database Schema
 
-Initial modules will introduce tables incrementally through Alembic migrations.
+## Current database
 
-Priority entities: users, roles, customers, orders, order_items, artworks, production_jobs, inventory_items, invoices, payments, dispatch_records, activity_logs, and settings.
+The implemented desktop database is SQLite through SQLAlchemy 2. Alembic
+revisions `0001` through `0021` create and evolve the schema. The database is
+upgraded at application startup.
 
-The migration environment is initialized under `app/database/migrations`.
-No business tables are part of the database foundation; each module introduces
-its schema through a reviewed Alembic revision.
+## Tables by domain
 
-## Authentication
+### Authentication and audit
 
-Phase 4 introduces `users`, `roles`, `permissions`, `user_roles`,
-`role_permissions`, and immutable `activity_logs`. Passwords are represented only
-by versioned scrypt hashes. Customer and order tables remain out of scope.
+- `users`
+- `roles`
+- `permissions`
+- `user_roles`
+- `role_permissions`
+- `activity_logs`
+- `audit_records`
+- `backup_history`
 
-## Customers
+Passwords are versioned scrypt hashes. Roles map to permission codes. Activity and
+audit records preserve accountable actions.
 
-Phase 6 adds `customers`, `customer_addresses`, and
-`customer_file_references`. Customer codes are unique, addresses are separated
-into billing and shipping records, and file references store managed relative
-paths rather than machine-specific absolute paths. Order tables remain out of scope.
+### Customers
 
-## Products and pricing
+- `customers`
+- `customer_addresses`
+- `customer_file_references`
+- `customer_storage_dates`
 
-Phase 7 adds product categories, products, quantity/metre price tiers, discount
-rules, and tax configuration. Monetary values use fixed-precision decimals.
+Important customer fields include generated code, name, business, phone,
+WhatsApp, delivery type, preferred courier/transport, preferred rate, email, GST,
+notes, active state, stable Backblaze `storage_prefix`, and
+`google_drive_folder_id`.
 
-## Orders
+Addresses are unique by `(customer_id, address_type)` and contain door/street
+fields through `line1`/`line2`, village/city, landmark, district, state, pincode,
+and country.
 
-Phase 8 adds `orders`, `order_items`, and `order_status_history`. Orders snapshot
-the calculated unit prices and totals for each item, store advance and balance
-amounts, and retain every workflow status transition. Artwork processing remains
-out of scope until Phase 9.
+`customer_storage_dates` has a unique `(customer_id, folder_date)` constraint.
+This is the authoritative duplicate guard for **Create today's folder** and may
+store the matching Google date-folder ID.
 
-## Artwork library
+### Products, pricing, and orders
 
-Phase 9 adds `artworks`, `artwork_versions`, and `artwork_approvals`. Database
-records contain managed relative paths; originals and optimized previews remain
-in application-managed storage. Artwork can be linked to customers and orders,
-and every uploaded version retains its own metadata and approval history.
+- `product_categories`
+- `products`
+- `price_rules`
+- `discount_rules`
+- `tax_configurations`
+- `orders`
+- `order_items`
+- `order_status_history`
 
-Phase 10 adds no database tables. Artwork Studio edits use the existing artwork
-version records, preserving the original while each saved edit becomes a new
-managed version.
+Money uses fixed-precision decimals. Order items snapshot prices/totals and status
+history preserves workflow changes.
 
-## Gang sheets
+### Artwork and gangsheets
 
-Phase 12 adds `gang_sheets` and `gang_sheet_items`. Layout geometry is stored in
-millimetres with explicit rotation and layer order. Interactive editing uses
-managed previews, while deterministic 300 DPI exports load original artwork
-files sequentially.
+- `artworks`
+- `artwork_versions`
+- `artwork_approvals`
+- `gang_sheets`
+- `gang_sheet_items`
 
-## Production
+Artwork records reference managed storage; originals are preserved and each edit
+or replacement is a version. Gangsheet geometry is stored in millimetres with
+rotation and layer order.
 
-Phase 13 adds `production_jobs`, `production_events`, and `quality_checks`.
-Production events are append-only through the service layer, so stage changes,
-assignments, pauses, reprints, wastage, quality results, and notes remain in the
-job history. Stage transitions follow the configured production sequence.
+### Production and quality
+
+- `production_jobs`
+- `production_events`
+- `quality_checks`
+
+Events preserve stage transitions, assignment, pause/reprint/wastage information,
+quality results, and notes.
+
+### Inventory and purchasing
+
+- `inventory_items`
+- `inventory_movements`
+- `suppliers`
+- `purchases`
+- `purchase_items`
+
+### Sales and payments
+
+- `invoices`
+- `invoice_items`
+- `payments`
+- `credit_notes`
+
+### Packing and dispatch
+
+- `packings`
+- `dispatches`
+- `dispatch_events`
+- `customer_notification_events`
+
+### Communications
+
+- `communication_messages`
+- `communication_attachments`
+- `message_templates`
+
+### Cloud files
+
+- `cloud_files`
+
+`cloud_files.object_key` is unique. Each record stores local cache path, original
+name, content type, byte size, SHA-256 checksum, operation, transfer state,
+retry/error information, timestamps, and optional Google Drive catalogue file ID.
+
+Supported states include queued, failed, and synced. Folder markers use operation
+`folder` and original name `.keep`; they are hidden from normal file lists.
+
+## Migration history
+
+| Revision | Purpose |
+|---|---|
+| 0001 | Authentication, roles, permissions, activity |
+| 0002 | Customers and addresses |
+| 0003 | Products and pricing |
+| 0004 | Orders and status history |
+| 0005 | Artwork library and approvals |
+| 0006 | Gangsheets |
+| 0007 | Production and quality |
+| 0008 | Inventory, suppliers, purchases |
+| 0009 | Invoices, payments, credits |
+| 0010 | Packing and dispatch |
+| 0011 | Cloud file queue |
+| 0012 | Communications |
+| 0013 | Reports, backup history, audit |
+| 0014 | Customer delivery type |
+| 0015 | Preferred courier/transport |
+| 0016 | Address district |
+| 0017 | Address landmark |
+| 0018 | Customer preferred rate |
+| 0019 | Google Drive catalogue file ID |
+| 0020 | Stable customer storage prefix and Drive root ID |
+| 0021 | Explicit customer date folders |
+
+## Invariants
+
+- UI code never performs database queries.
+- Foreign keys are enabled for SQLite.
+- Managed file paths must not be absolute or contain traversal.
+- Customer codes and cloud object keys are unique.
+- A customer/date folder can exist only once.
+- Schema changes require a new forward Alembic revision and migration tests.
+
+## Future hosted database
+
+`.env.backend.example` describes planned Supabase/PostgreSQL configuration only.
+No current desktop service reads it. A future migration must introduce tenants,
+memberships, verified identities, synchronization cursors, conflict policies,
+and server-side file authorization before the hosted backend is considered
+implemented.

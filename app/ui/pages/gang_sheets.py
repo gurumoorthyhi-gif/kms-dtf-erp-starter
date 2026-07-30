@@ -6,7 +6,7 @@ from collections.abc import Callable
 from decimal import Decimal
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QBrush, QColor, QPixmap
+from PySide6.QtGui import QBrush, QColor, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
@@ -90,6 +90,15 @@ class GangSheetCanvas(QGraphicsView):
         self.setRenderHint(self.renderHints())
         self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         self.setMinimumSize(500, 500)
+        self.view_mode = "Normal"
+        self.preview_colour = QColor("#ffffff")
+
+    def set_view_mode(self, mode: str) -> None:
+        self.view_mode = mode
+
+    def set_preview_colour(self, colour: str) -> None:
+        self.preview_colour = QColor(colour)
+        self.canvas_scene.setBackgroundBrush(QBrush(self.preview_colour))
 
     def render_sheet(
         self,
@@ -101,17 +110,35 @@ class GangSheetCanvas(QGraphicsView):
         width = float(details.width_mm) * PIXELS_PER_MM
         height = float(details.length_mm) * PIXELS_PER_MM
         self.canvas_scene.setSceneRect(0, 0, width, height)
-        self.canvas_scene.setBackgroundBrush(QBrush(QColor("white")))
+        self.canvas_scene.setBackgroundBrush(QBrush(self.preview_colour))
         for placement in details.items:
-            pixmap = QPixmap(str(service.preview_file(placement.preview_path)))
-            pixmap = pixmap.scaled(
-                max(1, round(float(placement.width_mm) * PIXELS_PER_MM)),
-                max(1, round(float(placement.height_mm) * PIXELS_PER_MM)),
-                Qt.AspectRatioMode.IgnoreAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
-            )
+            target_width = max(1, round(float(placement.width_mm) * PIXELS_PER_MM))
+            target_height = max(1, round(float(placement.height_mm) * PIXELS_PER_MM))
+            if self.view_mode == "Wireframe":
+                pixmap = QPixmap(target_width, target_height)
+                pixmap.fill(Qt.GlobalColor.transparent)
+                painter = QPainter(pixmap)
+                painter.setPen(QPen(QColor("#785cff"), 2))
+                painter.drawRect(1, 1, max(1, target_width - 2), max(1, target_height - 2))
+                painter.end()
+            else:
+                pixmap = QPixmap(str(service.preview_file(placement.preview_path)))
+                pixmap = pixmap.scaled(
+                    target_width,
+                    target_height,
+                    Qt.AspectRatioMode.IgnoreAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
             self.canvas_scene.addItem(PlacementItem(placement, pixmap, moved))
         self.fitInView(self.canvas_scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
+
+    def wheelEvent(self, event) -> None:  # type: ignore[no-untyped-def]
+        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            factor = 1.15 if event.angleDelta().y() > 0 else 1 / 1.15
+            self.scale(factor, factor)
+            event.accept()
+            return
+        super().wheelEvent(event)
 
     def selected_ids(self) -> tuple[int, ...]:
         return tuple(
@@ -122,6 +149,8 @@ class GangSheetCanvas(QGraphicsView):
 
 
 class GangSheetPage(QWidget):
+    """Legacy gangsheet page retained for backward compatibility."""
+
     def __init__(
         self,
         service: GangSheetService,

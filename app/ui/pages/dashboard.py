@@ -99,10 +99,10 @@ class DashboardPage(QWidget):
     @staticmethod
     def _create_kpi_cards() -> dict[str, KpiCard]:
         return {
-            "todays_orders": KpiCard("Today's orders", accent="purple"),
-            "pending_orders": KpiCard("Pending orders", accent="blue"),
+            "todays_orders": KpiCard("Total orders", accent="purple"),
+            "pending_orders": KpiCard("Pending", accent="blue"),
             "in_production": KpiCard("In production", accent="cyan"),
-            "completed_jobs": KpiCard("Completed jobs", accent="green"),
+            "completed_jobs": KpiCard("Completed", accent="green"),
             "pending_payments": KpiCard("Pending payments", accent="pink"),
             "revenue": KpiCard("Revenue", accent="purple"),
         }
@@ -122,6 +122,10 @@ class DashboardPage(QWidget):
         self.pipeline_widget.set_stages(overview.pipeline)
         self.activity_widget.set_items(overview.recent_activity)
         self.low_stock_widget.set_items(overview.low_stock)
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        self.refresh()
 
     def _change_period(self, period: str) -> None:
         self._period = DashboardPeriod(period)

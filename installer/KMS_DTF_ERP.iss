@@ -18,6 +18,8 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=lowest
 UninstallDisplayName={#MyAppName}
+SetupIconFile=..\assets\favicon.ico
+UninstallDisplayIcon={app}\{#MyAppExeName}
 
 [Files]
 Source: "..\dist\KMS_DTF_ERP\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs

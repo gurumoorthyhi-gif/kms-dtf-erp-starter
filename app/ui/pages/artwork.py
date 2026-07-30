@@ -54,7 +54,7 @@ class ArtworkUploadDialog(QDialog):
         self.customer = QComboBox()
         self.customer.addItem("Not linked", None)
         for customer in customer_service.list_customers():
-            self.customer.addItem(f"{customer.code} - {customer.name}", customer.id)
+            self.customer.addItem(customer.name, customer.id)
         self.order = QComboBox()
         self.order.addItem("Not linked", None)
         for order in order_service.list_orders():

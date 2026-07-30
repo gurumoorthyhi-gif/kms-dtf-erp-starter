@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from decimal import Decimal
 
 
 @dataclass(frozen=True, slots=True)
@@ -10,6 +11,8 @@ class AddressInput:
     line1: str = ""
     line2: str = ""
     city: str = ""
+    landmark: str = ""
+    district: str = ""
     state: str = ""
     postal_code: str = ""
     country: str = "India"
@@ -22,6 +25,10 @@ class CustomerInput:
     phone: str
     business_name: str = ""
     whatsapp_number: str = ""
+    delivery_type: str = "Courier"
+    preferred_courier: str = "ST"
+    other_transport_name: str = ""
+    preferred_rate: Decimal = Decimal("0.00")
     email: str | None = None
     gst_number: str = ""
     billing_address: AddressInput = AddressInput()
@@ -33,9 +40,15 @@ class CustomerInput:
 class CustomerSummary:
     id: int
     code: str
+    display_identifier: str
     name: str
     business_name: str
     phone: str
+    whatsapp_number: str
+    delivery_type: str
+    preferred_courier: str
+    other_transport_name: str
+    preferred_rate: Decimal
     email: str | None
     is_active: bool
 
@@ -49,3 +62,5 @@ class CustomerDetails:
     shipping_address: AddressInput
     notes: str
     file_references: tuple[tuple[str, str], ...]
+    storage_prefix: str = ""
+    google_drive_folder_id: str = ""

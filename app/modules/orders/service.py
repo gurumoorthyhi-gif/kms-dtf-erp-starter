@@ -37,6 +37,8 @@ ORDER_STATUSES = (
     "Cancelled",
 )
 PRIORITIES = ("Low", "Normal", "High", "Urgent")
+ORDER_TYPES = ("DTF", "T-Shirt", "DTF + T-Shirt")
+QUICK_STATUS_PROGRESSION = ("Designing", "Printing", "Completed")
 
 
 class OrderService:
@@ -52,8 +54,10 @@ class OrderService:
 
     def create_order(self, data: OrderInput) -> OrderDetails:
         self._require("orders.manage")
-        if data.customer_id < 1 or not data.items:
-            raise ValueError("A customer and at least one order item are required")
+        if data.customer_id < 1:
+            raise ValueError("Select a customer")
+        if data.order_type not in ORDER_TYPES:
+            raise ValueError("Select a valid order type")
         if data.priority not in PRIORITIES:
             raise ValueError("Invalid order priority")
         priced_items = tuple(
@@ -63,13 +67,15 @@ class OrderService:
         discount = sum((item.discount for item in priced_items), Decimal("0"))
         tax = sum((item.tax for item in priced_items), Decimal("0"))
         total = sum((item.total for item in priced_items), Decimal("0"))
-        if data.advance < 0 or data.advance > total:
+        advance = data.advance if priced_items else Decimal("0")
+        if advance < 0 or advance > total:
             raise ValueError("Advance must be between zero and the order total")
         today = date.today()
         number = generate_order_number(today, self.repository.next_sequence(today))
         order = self.repository.create(
             order_number=number,
             customer_id=data.customer_id,
+            order_type=data.order_type,
             items=priced_items,
             status="Draft",
             priority=data.priority,
@@ -79,8 +85,8 @@ class OrderService:
             discount=discount,
             tax=tax,
             total=total,
-            advance=data.advance,
-            balance=total - data.advance,
+            advance=advance,
+            balance=total - advance,
             changed_by_user_id=self._user_id(),
         )
         return self._details(order)
@@ -100,6 +106,22 @@ class OrderService:
         self._require("orders.manage")
         if status not in ORDER_STATUSES:
             raise ValueError("Invalid order status")
+        current = self.repository.get(order_id)
+        if current is None:
+            raise LookupError(f"Order not found: {order_id}")
+        if current.status == "Cancelled":
+            raise ValueError("Canceled order status cannot be changed")
+        if current.status in QUICK_STATUS_PROGRESSION:
+            if status == "Cancelled" and current.status != "Completed":
+                pass
+            elif status == "Cancelled":
+                raise ValueError("Completed order cannot be canceled")
+            elif (
+                status not in QUICK_STATUS_PROGRESSION
+                or QUICK_STATUS_PROGRESSION.index(status)
+                <= QUICK_STATUS_PROGRESSION.index(current.status)
+            ):
+                raise ValueError("Order status cannot be reversed")
         order = self.repository.change_status(
             order_id,
             status,
@@ -136,10 +158,23 @@ class OrderService:
 
     @staticmethod
     def _summary(order) -> OrderSummary:
+        billing = next(
+            (address for address in order.customer.addresses if address.address_type == "billing"),
+            None,
+        )
+        business = (order.customer.business_name or order.customer.name).strip().upper()
+        district = (
+            billing.district.strip().upper()
+            if billing is not None and billing.district
+            else "DISTRICT"
+        )
         return OrderSummary(
             order.id,
             order.order_number,
+            order.customer.code,
+            f"{order.customer.code} - {business} - {district}",
             order.customer.name,
+            order.order_type,
             order.status,
             order.priority,
             order.due_date,

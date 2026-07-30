@@ -15,6 +15,7 @@ from app.modules.artwork import (
 from app.modules.customers import CustomerRepository  # noqa: F401
 from app.modules.gang_sheets import GangSheetInput, GangSheetRepository, GangSheetService
 from app.modules.orders import OrderRepository  # noqa: F401
+from app.ui.pages.artwork_studio import ArtworkStudioPage
 from app.ui.pages.gang_sheets import LayoutHistory
 
 
@@ -115,4 +116,33 @@ def test_layout_history_supports_undo_and_redo(tmp_path: Path) -> None:
 
     assert history.undo() == before
     assert history.redo() == after
+    engine.dispose()
+
+
+def test_artwork_studio_defaults_and_hidden_width_allowance(tmp_path: Path, qtbot) -> None:
+    engine, service, _, _ = context(tmp_path)
+    page = ArtworkStudioPage(service, service.artwork_service, auto_refresh=False)
+    qtbot.addWidget(page)
+
+    assert page.units.currentText() == "inches"
+    assert page.sheet_width.value() == 22.7
+    assert round(page.sheet_length.value(), 2) == 39.37
+
+    page.save_layout()
+
+    assert page.details is not None
+    assert page.details.width_mm == Decimal("586.58")
+    assert page.details.length_mm == Decimal("1000.00")
+    engine.dispose()
+
+
+def test_artwork_studio_unit_switch_preserves_physical_size(tmp_path: Path, qtbot) -> None:
+    engine, service, _, _ = context(tmp_path)
+    page = ArtworkStudioPage(service, service.artwork_service, auto_refresh=False)
+    qtbot.addWidget(page)
+
+    page.units.setCurrentText("cm")
+
+    assert round(page.sheet_width.value(), 3) == 57.658
+    assert page.sheet_length.value() == 100.0
     engine.dispose()

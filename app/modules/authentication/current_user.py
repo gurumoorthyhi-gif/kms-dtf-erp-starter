@@ -9,7 +9,7 @@ from dataclasses import dataclass
 class AuthenticatedUser:
     """Minimal identity exposed outside the persistence layer."""
 
-    id: int
+    id: int | None
     username: str
     full_name: str
     roles: frozenset[str]

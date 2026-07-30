@@ -40,6 +40,9 @@ class Settings(BaseModel):
     email_app_password: str = ""
     ai_engine_url: str = "http://127.0.0.1:8001"
     ai_engine_api_key: str = ""
+    google_oauth_credentials: Path = Path("local_data/google/credentials.json")
+    google_oauth_token: Path = Path("local_data/google/token.json")
+    google_drive_state: Path = Path("local_data/google/drive_state.json")
 
     @classmethod
     def load(cls, env_file: str | Path | None = ".env") -> Settings:

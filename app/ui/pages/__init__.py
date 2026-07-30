@@ -1,12 +1,13 @@
 """Application pages."""
 
-from app.ui.pages.ai_tools import AIToolsPage
+from app.ui.pages.ai_tools import AIToolsPage, BeforeAfterView, ImageCanvas
 from app.ui.pages.artwork import ArtworkDetailsDialog, ArtworkLibraryPage, ArtworkUploadDialog
-from app.ui.pages.artwork_studio import ArtworkStudioPage, BeforeAfterView, ImageCanvas
+from app.ui.pages.artwork_studio import ArtworkStudioPage
 from app.ui.pages.cloud_storage import CloudStoragePage
 from app.ui.pages.communications import EmailInboxPage, WhatsAppInboxPage
 from app.ui.pages.dashboard import DashboardPage
 from app.ui.pages.gang_sheets import GangSheetCanvas, GangSheetPage, LayoutHistory
+from app.ui.pages.image_editor import ImageEditorPage
 from app.ui.pages.inventory import (
     InventoryItemDialog,
     InventoryPage,
@@ -16,7 +17,6 @@ from app.ui.pages.inventory import (
 from app.ui.pages.login import CreateAdministratorDialog, LoginPage
 from app.ui.pages.operations import OperationsPage
 from app.ui.pages.orders import OrderCreationDialog, OrderDetailsDialog, OrdersPage
-from app.ui.pages.production import ProductionHistoryDialog, ProductionPage
 from app.ui.pages.products import ProductFormDialog, ProductsPage
 from app.ui.pages.sales import InvoicesPage, PaymentsPage, SalesPage
 from app.ui.pages.settings import SettingsPage
@@ -24,7 +24,9 @@ from app.ui.pages.shipping import DispatchPage, PackingPage
 
 __all__ = [
     "CustomerDetailsDialog",
+    "CustomerFolderDialog",
     "CustomerFormDialog",
+    "CustomerImageEditorDialog",
     "CustomersPage",
     "DashboardPage",
     "CloudStoragePage",
@@ -40,6 +42,7 @@ __all__ = [
     "ArtworkStudioPage",
     "BeforeAfterView",
     "ImageCanvas",
+    "ImageEditorPage",
     "InventoryItemDialog",
     "InventoryPage",
     "LoginPage",
@@ -50,8 +53,6 @@ __all__ = [
     "OperationsPage",
     "ProductFormDialog",
     "ProductsPage",
-    "ProductionHistoryDialog",
-    "ProductionPage",
     "PurchasesPage",
     "SettingsPage",
     "InvoicesPage",
@@ -61,4 +62,10 @@ __all__ = [
     "PackingPage",
     "SuppliersPage",
 ]
-from app.ui.pages.customers import CustomerDetailsDialog, CustomerFormDialog, CustomersPage
+from app.ui.pages.customers import (
+    CustomerDetailsDialog,
+    CustomerFolderDialog,
+    CustomerFormDialog,
+    CustomerImageEditorDialog,
+    CustomersPage,
+)

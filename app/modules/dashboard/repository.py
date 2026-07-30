@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Protocol
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.database import SessionFactory, session_scope
 from app.modules.authentication.models import ActivityLog
@@ -15,6 +15,7 @@ from app.modules.dashboard.schemas import (
     LowStockItem,
     PipelineStage,
 )
+from app.modules.orders.models import Order
 
 PIPELINE_STAGES = (
     "Design",
@@ -52,7 +53,26 @@ class DashboardRepository:
 
     def get_metrics(self, date_range: DashboardDateRange) -> DashboardMetrics:
         del date_range
-        return DashboardMetrics()
+        with session_scope(self._session_factory) as session:
+            counts = dict(
+                session.execute(
+                    select(Order.status, func.count(Order.id)).group_by(Order.status)
+                ).all()
+            )
+            total = (
+                session.scalar(
+                    select(func.count(Order.id))
+                    .select_from(Order)
+                    .where(Order.status != "Cancelled")
+                )
+                or 0
+            )
+        return DashboardMetrics(
+            todays_orders=int(total),
+            pending_orders=int(counts.get("Designing", 0)),
+            in_production=int(counts.get("Printing", 0)),
+            completed_jobs=int(counts.get("Completed", 0)),
+        )
 
     def get_pipeline(self, date_range: DashboardDateRange) -> tuple[PipelineStage, ...]:
         del date_range

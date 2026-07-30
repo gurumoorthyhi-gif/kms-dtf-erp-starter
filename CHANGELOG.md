@@ -1,5 +1,50 @@
 # Changelog
 
+## Unreleased
+
+- Added an Image Editor icon and presentation-only workspace with tool labels,
+  a central canvas, and Layers/Channels inspector tabs.
+- Ordered Image Editor tools from basic to advanced and selected Background
+  Remover as the initial tool.
+- Added Image Editor Open and Save actions for managed customer folders, local
+  Import, and native-resolution canvas display without preview scaling.
+- Image Editor Save now replaces the same managed customer file after Open,
+  preserving its record identity and folder location.
+- Added a Photoshop-style transparency checkerboard to the Image Editor canvas
+  and made the unnumbered tool-name rail directly selectable.
+- Added canvas zoom in/out, 100%, fit, hand-pan, and image-move controls, plus
+  a Crop destination in the Image Editor tool rail.
+- Simplified canvas navigation to mouse-wheel zoom and middle-button drag-pan,
+  with only the current zoom percentage displayed in the top command bar.
+- Matched reference-editor cursor-centred wheel zoom and added live image width
+  and height readouts in inches, millimetres, centimetres, or pixels.
+- Made Width and Height editable so changes resample the image and are persisted
+  on Save, and expanded the canvas workspace for two-axis middle-button panning.
+- Added a locked-by-default aspect-ratio control between Width and Height for
+  proportional resizing, with an unlock option for independent dimensions.
+- Added transparent-edge Trim and made Crop interpret Width/Height as centred
+  canvas bounds, allowing transparent page extension or destructive cropping.
+- Separated the Image Editor pasteboard from the image canvas: the non-working
+  area is dark, while transparency checks appear only inside editable bounds.
+- Replaced the expanding navigation concept with a permanently collapsed
+  neon-glass icon rail and reusable hover tooltips.
+- Reworked Customers around local/courier numbering, Indian address and pincode
+  lookup, preferred courier and rate fields, guarded deletion, and a responsive
+  two-column editor.
+- Added stable customer storage roots and explicit, duplicate-safe dated work
+  folders containing Design, Gangsheet, Invoice Copy, and Payment Receipt.
+- Added a separate full-screen customer file workspace ordered as Folder tree,
+  Items, and adjustable Preview. Folder-panel navigation moves upward to the
+  customer folder and main Customers folder.
+- Added asynchronous Backblaze B2 folder, upload, download, and preview
+  operations so remote storage does not block the desktop interface.
+- Added optional Google Drive catalog and customer-sheet synchronization while
+  keeping private binaries in Backblaze and operational records in local SQLite.
+- Added database migrations 0020 and 0021 for customer storage roots and dated
+  work-folder records.
+- Reconciled the project Bible, requirements, architecture, database, UI,
+  workflow, deployment, and user documentation with the implemented product.
+
 ## 1.0.0
 
 - Prepared the tested Windows x64 release, installer/uninstaller, shortcuts,
@@ -14,7 +59,7 @@
 - Added typed environment settings, runtime directory initialization, and rotating logs.
 - Added the SQLAlchemy session, health-check, and Alembic migration foundations.
 - Completed Phase 2 with centralized path resolution and global exception handling.
-- Added the Phase 3 Qt Widgets shell with animated navigation and placeholder pages.
+- Added the initial Phase 3 Qt Widgets shell and animated navigation foundation.
 - Added Phase 4 authentication, users, roles, permissions, login/logout, and activity logs.
 - Added the Phase 5 operational dashboard with service-backed empty states and activity.
 - Added Phase 6 customer management with addresses, validation, search, and deactivation.

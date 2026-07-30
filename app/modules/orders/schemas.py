@@ -14,7 +14,8 @@ class OrderItemInput:
 @dataclass(frozen=True, slots=True)
 class OrderInput:
     customer_id: int
-    items: tuple[OrderItemInput, ...]
+    items: tuple[OrderItemInput, ...] = ()
+    order_type: str = "DTF"
     advance: Decimal = Decimal("0")
     due_date: date | None = None
     priority: str = "Normal"
@@ -53,7 +54,10 @@ class StatusHistoryItem:
 class OrderSummary:
     id: int
     order_number: str
+    customer_code: str
+    customer_display_identifier: str
     customer_name: str
+    order_type: str
     status: str
     priority: str
     due_date: date | None

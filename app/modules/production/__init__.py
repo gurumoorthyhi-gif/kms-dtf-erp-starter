@@ -1,4 +1,4 @@
-"""Production Studio module."""
+"""Production workflow module."""
 
 from app.modules.production.models import ProductionEvent, ProductionJob, QualityCheck
 from app.modules.production.repository import ProductionRepository
