@@ -90,6 +90,8 @@ class MainWindow(QMainWindow):
         self._theme_progress = value
         if hasattr(self, "_background"):
             self._background.set_theme_progress(value)
+        if hasattr(self, "image_editor_page"):
+            self.image_editor_page.set_theme_progress(value)
         self.setStyleSheet(APP_STYLESHEET + self._theme_overlay(value))
 
     themeProgress = Property(float, get_theme_progress, set_theme_progress)
@@ -254,6 +256,7 @@ class MainWindow(QMainWindow):
             self.router.register_page("studio", self.studio_page)
         self.sidebar.set_page_visible("studio", self.studio_page is not None)
         self.image_editor_page = ImageEditorPage(customer_service)
+        self.image_editor_page.set_theme_progress(self._theme_progress)
         self.router.register_page("image_editor", self.image_editor_page)
         self.inventory_page: InventoryPage | None = None
         if inventory_service is not None:

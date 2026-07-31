@@ -35,6 +35,33 @@ dragging pans the canvas. The command bar also reports the source image width
 and height using a selectable physical or pixel unit. Width and Height are
 editable and resample the working image before it is saved.
 
+Open and Import accept multiple images. Each image appears in a closable,
+movable document tab and retains independent edit, zoom, sizing, and managed
+file-save state.
+
+Managed Open and Save use a three-pane browser matching the customer-folder
+workspace: customers and folders on the left, file details in the centre,
+image preview on the right, and the primary Open/Save action at the bottom.
+Customers appear in creation serial order. The browser includes actions to
+create the current date folder and import designs into its Design folder, so
+the main Image Editor toolbar does not expose a separate local Import action.
+
+Image Editor keeps independent Undo/Redo history per document tab. Bottom
+controls expose Undo and Redo; keyboard shortcuts are Ctrl+Z, Ctrl+Shift+Z,
+Ctrl+O, Ctrl+S, and Ctrl+T. Trim is located in the left tool panel.
+
+Crop displays an interactive boundary over the canvas with corner and edge
+handles, rule-of-thirds guides, shaded outside area, and Apply/Cancel controls.
+Dragging beyond the image extends the transparent canvas; dragging inward
+removes pixels from the canvas bounds.
+Mouse-wheel zoom and middle-button pan remain available while Crop is active;
+the boundary, guides, and handles stay registered to the same image coordinates.
+Press `C` to activate Crop and `Enter` to apply the current crop boundary.
+
+Select detects the visible artwork bounds and displays a draggable transform
+boundary. Dragging moves the artwork across the transparent canvas; Width,
+Height, aspect lock, and Rotation properties transform the selected artwork.
+
 Trim removes transparent edge pixels. When Crop is selected, Width and Height
 change the canvas bounds instead of scaling the artwork, so the page can be
 extended with transparency or reduced around its centre.

@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+- Added multi-select Open and Import to Image Editor, with each selected image
+  opening in an independent closable and movable document tab.
+- Newly opened images now fit fully inside the canvas while remaining capped at
+  100% zoom so smaller source images are never enlarged automatically.
+- Image Editor document tabs now follow the application Dark/Light theme and
+  participate in the animated theme transition.
+- Replaced the Image Editor managed Open/Save picker with a three-pane customer
+  browser: folder tree, file details, live preview, and bottom action controls.
+- Customer trees now follow creation serial order. The Image Editor browser can
+  create the current date folder and import multiple designs directly into its
+  Design folder; the standalone editor Import button was removed.
+- Customer/date folder trees now start collapsed and expand only the path the
+  user chooses or the newly created current-date Design path.
+- Added per-tab pixel/canvas Undo and Redo controls at the bottom of Image
+  Editor, moved Trim into the left tool panel, and added Ctrl+Z,
+  Ctrl+Shift+Z, Ctrl+O, Ctrl+S, and Ctrl+T shortcuts.
+- Replaced numeric-only Crop behavior with an interactive canvas overlay using
+  eight drag handles, rule-of-thirds guides, shaded outside area, transparent
+  extension, explicit Apply/Cancel, and per-tab Undo support.
+- Interactive Crop now remains active during mouse-wheel zoom and middle-button
+  pan, with its boundary and handles transformed accurately with the canvas.
+- Lowered the Image Editor minimum zoom from 10% to 0.5% and added accurate
+  sub-1% percentage display in the top bar and document tabs.
+- Added `C` to activate Crop and `Enter` to apply the active crop boundary.
+- Numeric keypad Enter also confirms and applies the active Crop tool.
+- Added a Select tool that detects visible artwork, displays a draggable
+  selection boundary, moves it within the transparent canvas, and exposes
+  proportional size and rotation properties with Undo/Redo support.
 - Added an Image Editor icon and presentation-only workspace with tool labels,
   a central canvas, and Layers/Channels inspector tabs.
 - Ordered Image Editor tools from basic to advanced and selected Background

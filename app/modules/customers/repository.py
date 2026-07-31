@@ -79,7 +79,7 @@ class CustomerRepository:
                 )
             if active is not None:
                 statement = statement.where(Customer.is_active.is_(active))
-            return list(session.scalars(statement.order_by(Customer.name)))
+            return list(session.scalars(statement.order_by(Customer.id)))
 
     def create(self, data: CustomerInput, *, storage_prefix: str = "") -> Customer:
         with session_scope(self._session_factory) as session:

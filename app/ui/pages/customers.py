@@ -792,8 +792,13 @@ class CustomerFolderDialog(QDialog):
         if self._tree_level == "customers":
             self.tree_location.setText("Customers")
             self.tree_back_button.setEnabled(True)
-            for customer in self._service.list_customers("", active=True):
-                customer_item = QTreeWidgetItem([customer.display_identifier])
+            for serial, customer in enumerate(
+                self._service.list_customers("", active=True),
+                start=1,
+            ):
+                customer_item = QTreeWidgetItem(
+                    [f"{serial}. {customer.display_identifier}"]
+                )
                 customer_item.setData(
                     0,
                     Qt.ItemDataRole.UserRole,

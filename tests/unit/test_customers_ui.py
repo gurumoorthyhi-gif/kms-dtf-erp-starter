@@ -399,7 +399,7 @@ def test_customer_folder_tree_can_go_back_to_customer_and_main_folder(qtbot) -> 
     assert dialog.tree.topLevelItem(0).text(0) == "2026-07-28"
 
     dialog.tree_back_button.click()
-    assert dialog.tree.topLevelItem(0).text(0) == "CUS-001 - BUSINESS ONE - CHENNAI"
+    assert dialog.tree.topLevelItem(0).text(0) == "1. CUS-001 - BUSINESS ONE - CHENNAI"
 
     dialog.tree_back_button.click()
     assert dialog.tree.topLevelItem(0).text(0) == "Customers"
@@ -458,8 +458,8 @@ def test_customer_folder_tree_lists_and_opens_other_customers(qtbot) -> None:
     dialog.tree_back_button.click()
 
     assert dialog.tree.topLevelItemCount() == 2
-    assert dialog.tree.topLevelItem(0).text(0) == first.display_identifier
-    assert dialog.tree.topLevelItem(1).text(0) == second.display_identifier
+    assert dialog.tree.topLevelItem(0).text(0) == f"1. {first.display_identifier}"
+    assert dialog.tree.topLevelItem(1).text(0) == f"2. {second.display_identifier}"
 
     second_item = dialog.tree.topLevelItem(1)
     dialog._open_tree_item(second_item, 0)
