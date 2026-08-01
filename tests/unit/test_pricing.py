@@ -9,7 +9,7 @@ from app.modules.products import ProductInput, ProductRepository, ProductService
 
 @pytest.fixture
 def pricing(tmp_path: Path):
-    engine = create_database_engine(f"sqlite:///{tmp_path/'pricing.db'}")
+    engine = create_database_engine(f"sqlite:///{tmp_path / 'pricing.db'}")
     Base.metadata.create_all(engine)
     repository = ProductRepository(create_session_factory(engine))
     service = ProductService(repository)

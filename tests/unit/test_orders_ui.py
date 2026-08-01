@@ -59,9 +59,12 @@ def test_order_panel_shows_full_customer_and_quick_status_selection(qtbot) -> No
     page.order_changed.connect(lambda: changes.append(True))
 
     assert page.table.columnCount() == 4
-    assert [
-        page.table.horizontalHeaderItem(column).text() for column in range(4)
-    ] == ["Order", "Customer", "Product type", "Status"]
+    assert [page.table.horizontalHeaderItem(column).text() for column in range(4)] == [
+        "Order",
+        "Customer",
+        "Product type",
+        "Status",
+    ]
     assert page.table.item(0, 1).text() == "CR0007 - CUSTOMER SEVEN - CHENNAI"
 
     status = page.table.cellWidget(0, 3)

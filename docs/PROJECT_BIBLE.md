@@ -72,12 +72,16 @@ The required dependency direction is:
 - Permanently collapsed 78 px navigation rail.
 - Transparent navigation icons with neon selected and hover states.
 - One reusable animated tooltip; the rail never expands and has no pin behavior.
-- The rail includes a separate Image Editor destination. Its initial page is a
-  presentation shell with named tool rows, canvas, and Layers/Channels
-  inspector; individual tools are not implemented yet.
-- Image Editor Open/Save routes through managed customer folders; Import uses a
-  local file picker. The canvas initially displays images at 100% native
-  resolution and preserves source bytes when saving an unedited image.
+- The rail includes a functional multi-document Image Editor with managed
+  Open/Save, independent history, theme-aware tabs, zoom/pan, global image
+  dimensions, DPI metadata, rotation, Trim, Crop, Select, round Eraser, and
+  tolerance/contiguous Magic Eraser.
+- Image Editor Open/Save routes through managed customer folders. Local designs
+  are imported from the managed browser into an explicitly created date's Design
+  folder; there is no standalone editor Import command.
+- The top Width/Height/Rotate/DPI controls always belong to the complete image.
+  Crop alone changes canvas bounds, and Select transformations preserve a
+  pristine session source to avoid cumulative resize degradation.
 - Universal Google Drive button at the bottom-right of the application.
 - **Open folder** launches a separate full-screen customer file window while the
   Customers list remains open behind it.
@@ -106,6 +110,9 @@ The required dependency direction is:
 - Keep stable identifiers independent of editable customer names.
 - Lists, searches, and filters must be database-backed and suitable for at least
   1,000 customers.
+- Large image interactions update lightweight overlays or fast previews during
+  drag and perform expensive resampling once on commit. Undo uses Qt implicit
+  sharing instead of eager full-resolution copies.
 
 ## Source-of-truth documents
 

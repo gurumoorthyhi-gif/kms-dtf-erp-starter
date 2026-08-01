@@ -197,9 +197,7 @@ class OrdersPage(QWidget):
         toolbar.addWidget(new_order)
         layout.addLayout(toolbar)
         self.table = QTableWidget(0, 4)
-        self.table.setHorizontalHeaderLabels(
-            ["Order", "Customer", "Product type", "Status"]
-        )
+        self.table.setHorizontalHeaderLabels(["Order", "Customer", "Product type", "Status"])
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)

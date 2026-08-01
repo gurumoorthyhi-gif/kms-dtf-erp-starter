@@ -1,6 +1,6 @@
 from types import SimpleNamespace
 
-from PySide6.QtCore import QPoint, QRect, QRectF, QSettings, QSize
+from PySide6.QtCore import QPoint, QRect, QRectF, QSettings, QSize, Qt
 from PySide6.QtGui import QColor, QImage, QPalette
 from PySide6.QtWidgets import QTableWidgetSelectionRange
 
@@ -124,7 +124,7 @@ def test_image_editor_page_shell_is_registered(qtbot) -> None:
     assert window.sidebar.button_for("image_editor").toolTip() == "Image Editor"
     assert window.sidebar.button_for("image_editor").property("active") is True
     assert isinstance(window.image_editor_page, ImageEditorPage)
-    assert len(window.image_editor_page.tool_labels) == 10
+    assert len(window.image_editor_page.tool_labels) == 11
     assert window.image_editor_page.tool_labels["Background Remover"].property("active") is True
     assert window.image_editor_page.tool_labels["Background Remover"].text() == (
         "BACKGROUND REMOVER"
@@ -143,6 +143,7 @@ def test_image_editor_page_shell_is_registered(qtbot) -> None:
     assert window.image_editor_page.save_shortcut.key().toString() == "Ctrl+S"
     assert window.image_editor_page.trim_shortcut.key().toString() == "Ctrl+T"
     assert window.image_editor_page.crop_shortcut.key().toString() == "C"
+    assert window.image_editor_page.select_shortcut.key().toString() == "V"
     assert window.image_editor_page.apply_crop_shortcut.key().toString() == "Return"
     assert window.image_editor_page.apply_crop_numpad_shortcut.key().isEmpty() is False
 
@@ -449,7 +450,7 @@ def test_image_editor_trims_transparency_and_crop_extends_canvas(
 
     assert page._pixmap.width() == 20
     assert page._pixmap.height() == 18
-    assert page._pixmap.toImage().pixelColor(0, 0).alpha() == 0
+    assert page._pixmap.toImage().pixelColor(0, 0).alpha() == 255
 
 
 def test_image_editor_interactive_crop_handles_extend_canvas(qtbot, tmp_path) -> None:
@@ -522,6 +523,19 @@ def test_image_editor_select_moves_resizes_and_rotates_artwork(qtbot, tmp_path) 
     assert page.load_image(source) is True
     page.units_combo.setCurrentIndex(page.units_combo.findData("px"))
 
+    page.width_value.setValue(30)
+    assert page.height_value.value() == 20
+    page.width_value.setValue(60)
+    assert page.height_value.value() == 40
+
+    original_size = page._pixmap.size()
+    page.resolution_value.setValue(300)
+    page._change_resolution()
+    assert page._pixmap.size() == original_size
+    assert "@ 300 DPI" in page.image_info.text()
+    saved = QImage(str(page._edited_source()))
+    assert round(saved.dotsPerMeterX() * 0.0254) == 300
+
     page._select_tool("Select")
 
     assert page.selection_overlay.isHidden() is False
@@ -556,4 +570,122 @@ def test_image_editor_select_moves_resizes_and_rotates_artwork(qtbot, tmp_path) 
     page.rotation_value.setValue(90)
     page._rotate_image()
     assert page._pixmap.size() == QSize(80, 120)
+    assert page.rotation_value.value() == 90
+
+    page.rotation_value.setValue(45)
+    page._rotate_image()
+    assert page.rotation_value.value() == 45
+    page.undo()
+    assert page.rotation_value.value() == 90
+    page.redo()
+    assert page.rotation_value.value() == 45
     assert page.undo_button.isEnabled() is True
+
+
+def test_image_editor_top_dimensions_resize_image_even_when_crop_is_active(qtbot, tmp_path) -> None:
+    source = tmp_path / "crop-active-resize.png"
+    image = QImage(60, 40, QImage.Format.Format_ARGB32)
+    image.fill(QColor("#3366CC"))
+    assert image.save(str(source))
+    page = ImageEditorPage()
+    qtbot.addWidget(page)
+    assert page.load_image(source) is True
+    page.units_combo.setCurrentIndex(page.units_combo.findData("px"))
+    page._select_tool("Crop")
+    page.show()
+    page.canvas_scroll.setFocus()
+    qtbot.keyClick(page.canvas_scroll, Qt.Key.Key_V)
+    assert page._active_tool == "Select"
+    assert page.selection_overlay.isHidden() is False
+
+    start = page.selection_overlay.geometry()
+    moved = start.translated(20, 10)
+    page._selection_transform_completed(start, moved, "move")
+    assert page.selection_overlay.geometry().center() == moved.center()
+
+    start = page.selection_overlay.geometry()
+    enlarged = QRect(start)
+    enlarged.setRight(start.right() + start.width())
+    enlarged.setBottom(start.bottom() + start.height())
+    page._selection_transform_completed(start, enlarged, "bottom_right")
+    assert page._selection_width == 120
+    assert page._selection_height == 80
+
+    page.undo()
+    page.undo()
+    page._select_tool("Crop")
+
+    page.width_value.setValue(120)
+    assert page.height_value.value() == 80
+    page._resize_from_dimensions("width")
+
+    assert page._pixmap.size() == QSize(120, 80)
+    assert page._visible_pixel_bounds() == QRect(0, 0, 120, 80)
+    assert page.crop_overlay.isHidden() is True
+
+    page._select_tool("Select")
+    qtbot.mouseClick(page.canvas_scroll.viewport(), Qt.MouseButton.LeftButton, pos=QPoint(2, 2))
+    assert page._active_tool == ""
+    assert page.selection_overlay.isHidden() is True
+    assert all(not button.isChecked() for button in page.tool_labels.values())
+
+
+def test_image_editor_round_eraser_has_adjustable_size_and_undo(qtbot, tmp_path) -> None:
+    source = tmp_path / "eraser-source.png"
+    image = QImage(60, 40, QImage.Format.Format_ARGB32)
+    image.fill(QColor("#3366CC"))
+    assert image.save(str(source))
+    page = ImageEditorPage()
+    qtbot.addWidget(page)
+    assert page.load_image(source) is True
+
+    page._select_tool("Eraser")
+    assert page.eraser_controls.isHidden() is False
+    page.eraser_size_slider.setValue(12)
+    assert page.eraser_size_value.value() == 12
+
+    page._push_undo()
+    page._erase_segment(QPoint(20, 20), QPoint(40, 20))
+    erased = page._pixmap.toImage()
+    assert erased.pixelColor(30, 20).alpha() == 0
+    assert erased.pixelColor(0, 0).alpha() == 255
+
+    page.undo()
+    assert page._pixmap.toImage().pixelColor(30, 20).alpha() == 255
+
+
+def test_image_editor_magic_eraser_removes_matching_colour_with_tolerance(qtbot, tmp_path) -> None:
+    source = tmp_path / "magic-eraser-source.png"
+    image = QImage(20, 10, QImage.Format.Format_ARGB32)
+    image.fill(QColor("#3366CC"))
+    for y in range(10):
+        for x in range(8, 12):
+            image.setPixelColor(x, y, QColor("#CC3333"))
+    assert image.save(str(source))
+    page = ImageEditorPage()
+    qtbot.addWidget(page)
+    assert page.load_image(source) is True
+
+    page._select_tool("Magic Eraser")
+    assert page.magic_eraser_controls.isHidden() is False
+    page.magic_eraser_tolerance_slider.setValue(10)
+    assert page.magic_eraser_tolerance_value.value() == 10
+    assert page.magic_eraser_contiguous.isChecked() is True
+
+    page._push_undo()
+    page._magic_erase_at(QPoint(2, 2))
+    erased = page._pixmap.toImage()
+    assert erased.pixelColor(2, 2).alpha() == 0
+    assert erased.pixelColor(9, 2).alpha() == 255
+    assert erased.pixelColor(15, 2).alpha() == 255
+
+    page.undo()
+    assert page._pixmap.toImage().pixelColor(2, 2).alpha() == 255
+
+    page.magic_eraser_contiguous.setChecked(False)
+    page._push_undo()
+    page._magic_erase_at(QPoint(2, 2))
+    erased = page._pixmap.toImage()
+    assert erased.pixelColor(2, 2).alpha() == 0
+    assert erased.pixelColor(15, 2).alpha() == 0
+    assert erased.pixelColor(9, 2).alpha() == 255

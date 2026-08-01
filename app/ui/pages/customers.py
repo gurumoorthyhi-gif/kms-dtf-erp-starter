@@ -524,11 +524,7 @@ class CopyFilesToDialog(QDialog):
     def _load_dates(self) -> None:
         self.date_folder.clear()
         customer_id = self.customer.currentData()
-        dates = (
-            self._service.customer_storage_dates(customer_id)
-            if customer_id is not None
-            else []
-        )
+        dates = self._service.customer_storage_dates(customer_id) if customer_id is not None else []
         self.date_folder.addItems(dates)
         available = bool(dates)
         self.buttons.button(QDialogButtonBox.StandardButton.Ok).setEnabled(available)
@@ -796,9 +792,7 @@ class CustomerFolderDialog(QDialog):
                 self._service.list_customers("", active=True),
                 start=1,
             ):
-                customer_item = QTreeWidgetItem(
-                    [f"{serial}. {customer.display_identifier}"]
-                )
+                customer_item = QTreeWidgetItem([f"{serial}. {customer.display_identifier}"])
                 customer_item.setData(
                     0,
                     Qt.ItemDataRole.UserRole,

@@ -2,8 +2,26 @@
 
 ## Unreleased
 
-- Added multi-select Open and Import to Image Editor, with each selected image
-  opening in an independent closable and movable document tab.
+- Added a round transparent Eraser with a zoom-aware circular cursor, linked
+  1-500 px size slider/value, continuous strokes, and one Undo step per stroke.
+- Added a Magic Eraser with 0-255 color tolerance and a default-on Contiguous
+  option for connected-region versus image-wide matching-color removal.
+- Made `V` reliably activate Select from child canvas controls and retained `C`
+  for Crop through page-level key handling.
+- Empty-pasteboard clicks now deselect every Image Editor tool and close active
+  Crop/Select overlays without consuming image or selection clicks.
+- Removed the Crop-dependent top-dimension path: Width/Height always scale the
+  complete image, while only the interactive Crop boundary extends canvas.
+- Select can now move and enlarge full-canvas artwork beyond image bounds while
+  retaining its true off-canvas transform rectangle.
+- Width/Height update their locked partner live, DPI is displayed with pixel and
+  physical print size and saved as metadata, and absolute per-document rotation
+  persists through edits, tab changes, Undo, and Redo.
+- Improved Select performance with lightweight live overlay transforms,
+  copy-on-write history, cached alpha bounds, and single resampling on release.
+
+- Added multi-select managed Open and customer-browser design import, with each
+  opened image using an independent closable and movable document tab.
 - Newly opened images now fit fully inside the canvas while remaining capped at
   100% zoom so smaller source images are never enlarged automatically.
 - Image Editor document tabs now follow the application Dark/Light theme and
@@ -28,10 +46,10 @@
 - Added `C` to activate Crop and `Enter` to apply the active crop boundary.
 - Numeric keypad Enter also confirms and applies the active Crop tool.
 - Added a Select tool that detects visible artwork, displays a draggable
-  selection boundary, moves it within the transparent canvas, and exposes
-  proportional size and rotation properties with Undo/Redo support.
-- Added an Image Editor icon and presentation-only workspace with tool labels,
-  a central canvas, and Layers/Channels inspector tabs.
+  selection boundary, moves or enlarges it beyond the canvas, and performs
+  proportional handle transforms with Undo/Redo support.
+- Added an Image Editor icon and functional workspace with tool labels, a central
+  canvas, document tabs, and Layers/Channels inspector tabs.
 - Ordered Image Editor tools from basic to advanced and selected Background
   Remover as the initial tool.
 - Added Image Editor Open and Save actions for managed customer folders, local
@@ -50,8 +68,8 @@
   on Save, and expanded the canvas workspace for two-axis middle-button panning.
 - Added a locked-by-default aspect-ratio control between Width and Height for
   proportional resizing, with an unlock option for independent dimensions.
-- Added transparent-edge Trim and made Crop interpret Width/Height as centred
-  canvas bounds, allowing transparent page extension or destructive cropping.
+- Added transparent-edge Trim and interactive Crop bounds for transparent page
+  extension or destructive cropping; top Width/Height remain image resampling.
 - Separated the Image Editor pasteboard from the image canvas: the non-working
   area is dark, while transparency checks appear only inside editable bounds.
 - Replaced the expanding navigation concept with a permanently collapsed

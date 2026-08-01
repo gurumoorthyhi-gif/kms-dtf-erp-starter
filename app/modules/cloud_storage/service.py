@@ -340,9 +340,7 @@ class CloudStorageService:
             histograms = []
             for region in regions:
                 hsv = cv2.cvtColor(region, cv2.COLOR_BGR2HSV)
-                histogram = cv2.calcHist(
-                    [hsv], [0, 1], None, [18, 16], [0, 180, 0, 256]
-                )
+                histogram = cv2.calcHist([hsv], [0, 1], None, [18, 16], [0, 180, 0, 256])
                 cv2.normalize(histogram, histogram)
                 histograms.append(histogram)
             height, width = image.shape[:2]
@@ -443,23 +441,15 @@ class CloudStorageService:
             if query_descriptors is None or candidate_descriptors is None:
                 similarity = (pattern * 0.72) + (max(0.0, color) * 0.28)
             else:
-                similarity = (
-                    (pattern * 0.43)
-                    + (max(0.0, color) * 0.20)
-                    + (feature_score * 0.37)
-                )
+                similarity = (pattern * 0.43) + (max(0.0, color) * 0.20) + (feature_score * 0.37)
                 if verified_feature_score > 0:
                     similarity = max(
                         similarity,
                         0.76 + (verified_feature_score * 0.22),
                     )
-            global_evidence_is_strong = (
-                pattern >= 0.84
-                and (color >= 0.48 or feature_score >= 0.38)
-            )
-            if (
-                similarity >= minimum_similarity
-                and (verified_feature_score > 0 or global_evidence_is_strong)
+            global_evidence_is_strong = pattern >= 0.84 and (color >= 0.48 or feature_score >= 0.38)
+            if similarity >= minimum_similarity and (
+                verified_feature_score > 0 or global_evidence_is_strong
             ):
                 matches.append((similarity, record))
         matches.sort(key=lambda item: item[0], reverse=True)

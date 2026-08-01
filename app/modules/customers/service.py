@@ -305,15 +305,12 @@ class CustomerService:
         variants = {cleaned, cleaned.replace("/", "-")}
         date_match = re.fullmatch(r"([0-9]{2})-([0-9]{2})-([0-9]{4})", cleaned)
         if date_match is not None:
-            variants.add(
-                f"{date_match.group(3)}-{date_match.group(2)}-{date_match.group(1)}"
-            )
+            variants.add(f"{date_match.group(3)}-{date_match.group(2)}-{date_match.group(1)}")
         return [
             item
             for item in self._storage_service.list_prefix("customers")
             if any(
-                variant in item.original_name.casefold()
-                or variant in item.object_key.casefold()
+                variant in item.original_name.casefold() or variant in item.object_key.casefold()
                 for variant in variants
             )
         ]

@@ -57,6 +57,40 @@ JPEG, TIFF, BMP, WebP, or another supported image format to preview it on the
 right. PDF documents open in the embedded PDF viewer. Files not present in the
 local cache are fetched securely from Backblaze in the background.
 
+## Image Editor
+
+Open **Image Editor** from the navigation rail. Select **Open** to use the
+three-pane customer browser and choose one or more managed images. Each image
+opens in its own movable, closable tab. The browser can create today's dated
+folder and import local designs into its Design folder. **Save** replaces the
+same managed file when it was opened from a customer folder.
+
+Use the mouse wheel to zoom from 0.5% to 800% and hold the middle mouse button
+to pan. The percentage appears at the top. The dark area is pasteboard; the
+checkerboard inside the image represents transparency. Click empty pasteboard
+to deselect all tools.
+
+The top Width, Height, Rotate, and Resolution values always apply to the complete
+image. Choose inches, millimetres, centimetres, or pixels. Keep the lock closed
+for proportional dimensions; the paired value updates while typing. Press Enter
+to commit. Rotate remains at the entered absolute angle. DPI changes print size
+and saved resolution metadata, not the on-screen pixel count; verify it in the
+top status text showing pixels, print inches, and DPI.
+
+- **Select** (`V`): move artwork and resize with eight handles. Locked corner
+  handles remain proportional. The boundary may extend beyond the canvas.
+- **Crop** (`C`): drag inward to crop or outward to extend transparent canvas;
+  press Enter to apply.
+- **Trim** (`Ctrl+T`): remove transparent edge pixels.
+- **Eraser**: drag a round transparent brush. Adjust its 1-500 px size in the
+  bottom bar. Each stroke is one Undo operation.
+- **Magic Eraser**: click a color to remove it. Tolerance controls color range.
+  Keep **Contiguous** checked to remove only the connected clicked region;
+  uncheck it to remove matching colors across the image.
+
+Use `Ctrl+Z` for Undo, `Ctrl+Shift+Z` for Redo, `Ctrl+O` for Open, and `Ctrl+S`
+for Save. Return and numpad Enter finish the active numeric or Crop operation.
+
 ## Security
 
 Never share passwords or `.env`. Administrators should grant the minimum role

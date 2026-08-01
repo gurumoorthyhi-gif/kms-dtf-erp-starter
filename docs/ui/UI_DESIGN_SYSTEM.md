@@ -35,7 +35,7 @@ dragging pans the canvas. The command bar also reports the source image width
 and height using a selectable physical or pixel unit. Width and Height are
 editable and resample the working image before it is saved.
 
-Open and Import accept multiple images. Each image appears in a closable,
+Open accepts multiple images. Each image appears in a closable,
 movable document tab and retains independent edit, zoom, sizing, and managed
 file-save state.
 
@@ -48,7 +48,8 @@ the main Image Editor toolbar does not expose a separate local Import action.
 
 Image Editor keeps independent Undo/Redo history per document tab. Bottom
 controls expose Undo and Redo; keyboard shortcuts are Ctrl+Z, Ctrl+Shift+Z,
-Ctrl+O, Ctrl+S, and Ctrl+T. Trim is located in the left tool panel.
+Ctrl+O, Ctrl+S, and Ctrl+T. `C` activates Crop and `V` activates Select. Return
+and numpad Enter commit the current operation. Trim is in the left tool panel.
 
 Crop displays an interactive boundary over the canvas with corner and edge
 handles, rule-of-thirds guides, shaded outside area, and Apply/Cancel controls.
@@ -58,13 +59,21 @@ Mouse-wheel zoom and middle-button pan remain available while Crop is active;
 the boundary, guides, and handles stay registered to the same image coordinates.
 Press `C` to activate Crop and `Enter` to apply the current crop boundary.
 
-Select detects the visible artwork bounds and displays a draggable transform
-boundary. Dragging moves the artwork across the transparent canvas; Width,
-Height, aspect lock, and Rotation properties transform the selected artwork.
+Select detects visible artwork and displays a draggable eight-handle transform
+boundary. It keeps its true boundary when moved or enlarged beyond the canvas.
+Side handles resize one axis; corner handles preserve aspect ratio while locked.
+The top Width, Height, Rotate, and DPI fields always remain complete-image
+properties. Select renders repeatedly from its pristine session source.
 
-Trim removes transparent edge pixels. When Crop is selected, Width and Height
-change the canvas bounds instead of scaling the artwork, so the page can be
-extended with transparency or reduced around its centre.
+Trim removes transparent edge pixels. Top Width and Height always scale the
+complete image, including while Crop is selected. Only dragging the interactive
+Crop boundary changes canvas bounds.
+
+Eraser exposes a contextual bottom bar with linked 1-500 px size slider/value,
+a zoom-aware round cursor, continuous transparent stroke, and stroke-level Undo.
+Magic Eraser exposes 0-255 tolerance and a default-on Contiguous checkbox.
+Contiguous removes only the connected clicked color region; unchecked removes
+matching colors across the image. Clicking empty pasteboard deselects all tools.
 
 The canvas has two visually distinct spaces: a dark, non-image pasteboard and
 checkerboard transparency constrained to the editable image bounds.

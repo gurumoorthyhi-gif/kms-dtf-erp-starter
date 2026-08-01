@@ -16,6 +16,7 @@ from PySide6.QtCore import QEvent, QPoint, QRect, QRectF, QSettings, QSignalBloc
 from PySide6.QtGui import (
     QBrush,
     QColor,
+    QCursor,
     QImage,
     QImageReader,
     QKeySequence,
@@ -30,6 +31,7 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
+    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -44,6 +46,8 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSizePolicy,
+    QSlider,
+    QSpinBox,
     QSplitter,
     QTabBar,
     QTableWidget,
@@ -69,6 +73,7 @@ TOOL_NAMES = (
     "Background Remover",
     "Image Upscaler",
     "Eraser",
+    "Magic Eraser",
     "Select",
     "Crop",
     "Magic Wand",
@@ -90,8 +95,9 @@ class ImageDocument:
     dpi_y: float
     modified: bool = False
     zoom: float = 1.0
-    undo_stack: list[tuple[QPixmap, bool]] = dataclass_field(default_factory=list)
-    redo_stack: list[tuple[QPixmap, bool]] = dataclass_field(default_factory=list)
+    rotation: float = 0.0
+    undo_stack: list[tuple[QPixmap, bool, float]] = dataclass_field(default_factory=list)
+    redo_stack: list[tuple[QPixmap, bool, float]] = dataclass_field(default_factory=list)
 
 
 class PanScrollArea(QScrollArea):
@@ -850,6 +856,9 @@ class ImageEditorPage(QWidget):
         self._image_modified = False
         self._active_tool = TOOL_NAMES[0]
         self._selection_rotation = 0.0
+        self._image_rotation = 0.0
+        self._eraser_drawing = False
+        self._eraser_last_point = QPoint()
         self._selection_source = QPixmap()
         self._selection_width = 0
         self._selection_height = 0
@@ -892,7 +901,7 @@ class ImageEditorPage(QWidget):
             field.setObjectName("imageDimension")
             field.setDecimals(2)
             field.setRange(0, 1_000_000)
-            field.setKeyboardTracking(False)
+            field.setKeyboardTracking(True)
             field.setMinimumWidth(92)
         command_layout.addWidget(QLabel("W:"))
         command_layout.addWidget(self.width_value)
@@ -924,6 +933,9 @@ class ImageEditorPage(QWidget):
         self.resolution_value.setKeyboardTracking(False)
         self.resolution_value.setMinimumWidth(92)
         self.resolution_value.setValue(96.0)
+        self.resolution_value.setToolTip(
+            "DPI changes physical print size and saved metadata, not screen pixels."
+        )
         command_layout.addWidget(self.resolution_value)
         command_layout.addStretch()
         self.image_info = QLabel("No image loaded")
@@ -1062,6 +1074,43 @@ class ImageEditorPage(QWidget):
         self.cancel_crop_button.setVisible(False)
         history_layout.addWidget(self.apply_crop_button)
         history_layout.addWidget(self.cancel_crop_button)
+        self.eraser_controls = QFrame()
+        eraser_layout = QHBoxLayout(self.eraser_controls)
+        eraser_layout.setContentsMargins(0, 0, 0, 0)
+        eraser_layout.addWidget(QLabel("Round Eraser Size:"))
+        self.eraser_size_slider = QSlider(Qt.Orientation.Horizontal)
+        self.eraser_size_slider.setRange(1, 500)
+        self.eraser_size_slider.setValue(30)
+        self.eraser_size_slider.setMinimumWidth(180)
+        self.eraser_size_value = QSpinBox()
+        self.eraser_size_value.setRange(1, 500)
+        self.eraser_size_value.setValue(30)
+        self.eraser_size_value.setSuffix(" px")
+        eraser_layout.addWidget(self.eraser_size_slider)
+        eraser_layout.addWidget(self.eraser_size_value)
+        self.eraser_controls.setVisible(False)
+        history_layout.addWidget(self.eraser_controls)
+        self.magic_eraser_controls = QFrame()
+        magic_layout = QHBoxLayout(self.magic_eraser_controls)
+        magic_layout.setContentsMargins(0, 0, 0, 0)
+        magic_layout.addWidget(QLabel("Magic Eraser Tolerance:"))
+        self.magic_eraser_tolerance_slider = QSlider(Qt.Orientation.Horizontal)
+        self.magic_eraser_tolerance_slider.setRange(0, 255)
+        self.magic_eraser_tolerance_slider.setValue(24)
+        self.magic_eraser_tolerance_slider.setMinimumWidth(180)
+        self.magic_eraser_tolerance_value = QSpinBox()
+        self.magic_eraser_tolerance_value.setRange(0, 255)
+        self.magic_eraser_tolerance_value.setValue(24)
+        self.magic_eraser_contiguous = QCheckBox("Contiguous")
+        self.magic_eraser_contiguous.setChecked(True)
+        self.magic_eraser_contiguous.setToolTip(
+            "Erase only matching pixels connected to the clicked area"
+        )
+        magic_layout.addWidget(self.magic_eraser_tolerance_slider)
+        magic_layout.addWidget(self.magic_eraser_tolerance_value)
+        magic_layout.addWidget(self.magic_eraser_contiguous)
+        self.magic_eraser_controls.setVisible(False)
+        history_layout.addWidget(self.magic_eraser_controls)
         history_layout.addStretch()
         self.undo_button = QPushButton("Undo")
         self.redo_button = QPushButton("Redo")
@@ -1082,15 +1131,31 @@ class ImageEditorPage(QWidget):
         self.units_combo.currentIndexChanged.connect(self._update_dimensions)
         self.width_value.editingFinished.connect(lambda: self._resize_from_dimensions("width"))
         self.height_value.editingFinished.connect(lambda: self._resize_from_dimensions("height"))
+        self.width_value.valueChanged.connect(
+            lambda value: self._preview_linked_dimension("width", value)
+        )
+        self.height_value.valueChanged.connect(
+            lambda value: self._preview_linked_dimension("height", value)
+        )
         self.rotation_value.editingFinished.connect(self._rotate_image)
         self.resolution_value.editingFinished.connect(self._change_resolution)
         self.aspect_lock_button.toggled.connect(self._set_aspect_lock)
+        self.eraser_size_slider.valueChanged.connect(self.eraser_size_value.setValue)
+        self.eraser_size_value.valueChanged.connect(self.eraser_size_slider.setValue)
+        self.eraser_size_value.valueChanged.connect(self._update_eraser_cursor)
+        self.magic_eraser_tolerance_slider.valueChanged.connect(
+            self.magic_eraser_tolerance_value.setValue
+        )
+        self.magic_eraser_tolerance_value.valueChanged.connect(
+            self.magic_eraser_tolerance_slider.setValue
+        )
         self.undo_shortcut = QShortcut(QKeySequence.StandardKey.Undo, self)
         self.redo_shortcut = QShortcut(QKeySequence("Ctrl+Shift+Z"), self)
         self.open_shortcut = QShortcut(QKeySequence.StandardKey.Open, self)
         self.save_shortcut = QShortcut(QKeySequence.StandardKey.Save, self)
         self.trim_shortcut = QShortcut(QKeySequence("Ctrl+T"), self)
         self.crop_shortcut = QShortcut(QKeySequence("C"), self)
+        self.select_shortcut = QShortcut(QKeySequence("V"), self)
         self.apply_crop_shortcut = QShortcut(QKeySequence("Return"), self)
         self.apply_crop_numpad_shortcut = QShortcut(
             QKeySequence(Qt.Key.Key_Enter),
@@ -1102,8 +1167,12 @@ class ImageEditorPage(QWidget):
         self.save_shortcut.activated.connect(self.save_customer_image)
         self.trim_shortcut.activated.connect(self.trim_transparent_pixels)
         self.crop_shortcut.activated.connect(lambda: self._select_tool("Crop"))
+        self.select_shortcut.activated.connect(lambda: self._select_tool("Select"))
         self.apply_crop_shortcut.activated.connect(self._finish_current_edit)
         self.apply_crop_numpad_shortcut.activated.connect(self._finish_current_edit)
+        self.tool_labels["Crop"].setToolTip("Crop (C)")
+        self.tool_labels["Select"].setToolTip("Select and move artwork (V)")
+        QApplication.instance().installEventFilter(self)
         self._update_history_actions()
 
         self.setStyleSheet(
@@ -1185,6 +1254,199 @@ class ImageEditorPage(QWidget):
             """
         )
 
+    def eventFilter(self, watched, event) -> bool:
+        """Activate canvas tools even when a child widget owns keyboard focus."""
+        if (
+            event.type() == QEvent.Type.KeyPress
+            and self.isVisible()
+            and QApplication.activeModalWidget() is None
+            and event.modifiers() == Qt.KeyboardModifier.NoModifier
+        ):
+            if event.key() == Qt.Key.Key_V:
+                self._select_tool("Select")
+                event.accept()
+                return True
+            if event.key() == Qt.Key.Key_C:
+                self._select_tool("Crop")
+                event.accept()
+                return True
+        if (
+            self._active_tool == "Magic Eraser"
+            and event.type() == QEvent.Type.MouseButtonPress
+            and event.button() == Qt.MouseButton.LeftButton
+        ):
+            local = self.canvas_placeholder.mapFromGlobal(event.globalPosition().toPoint())
+            if self.canvas_placeholder.rect().contains(local):
+                self._push_undo()
+                self._magic_erase_at(self._image_point_from_local(local))
+                self._image_modified = True
+                self._sync_active_document()
+                return True
+        if self._active_tool == "Eraser" and event.type() in (
+            QEvent.Type.MouseButtonPress,
+            QEvent.Type.MouseMove,
+            QEvent.Type.MouseButtonRelease,
+        ):
+            local = self.canvas_placeholder.mapFromGlobal(event.globalPosition().toPoint())
+            inside_image = self.canvas_placeholder.rect().contains(local)
+            if (
+                event.type() == QEvent.Type.MouseButtonPress
+                and event.button() == Qt.MouseButton.LeftButton
+                and inside_image
+            ):
+                self._push_undo()
+                self._eraser_drawing = True
+                self._eraser_last_point = self._image_point_from_local(local)
+                self._erase_segment(self._eraser_last_point, self._eraser_last_point)
+                return True
+            if event.type() == QEvent.Type.MouseMove and self._eraser_drawing:
+                if inside_image:
+                    point = self._image_point_from_local(local)
+                    self._erase_segment(self._eraser_last_point, point)
+                    self._eraser_last_point = point
+                return True
+            if (
+                event.type() == QEvent.Type.MouseButtonRelease
+                and event.button() == Qt.MouseButton.LeftButton
+                and self._eraser_drawing
+            ):
+                self._eraser_drawing = False
+                self._image_modified = True
+                self._update_image_info()
+                self._sync_active_document()
+                return True
+        if (
+            event.type() == QEvent.Type.MouseButtonPress
+            and event.button() == Qt.MouseButton.LeftButton
+            and self.isVisible()
+            and QApplication.activeModalWidget() is None
+        ):
+            global_position = event.globalPosition().toPoint()
+            viewport = self.canvas_scroll.viewport()
+            viewport_rect = QRect(viewport.mapToGlobal(QPoint()), viewport.size())
+            image_rect = QRect(
+                self.canvas_placeholder.mapToGlobal(QPoint()),
+                self.canvas_placeholder.size(),
+            )
+            selection_rect = QRect()
+            if not self.selection_overlay.isHidden():
+                selection_rect = QRect(
+                    self.selection_overlay.mapToGlobal(QPoint()),
+                    self.selection_overlay.size(),
+                )
+            if (
+                viewport_rect.contains(global_position)
+                and not image_rect.contains(global_position)
+                and not selection_rect.contains(global_position)
+            ):
+                self._clear_active_tool()
+        return super().eventFilter(watched, event)
+
+    def _image_point_from_local(self, local: QPoint) -> QPoint:
+        return QPoint(
+            round(local.x() * self._pixmap.width() / max(1, self.canvas_placeholder.width())),
+            round(local.y() * self._pixmap.height() / max(1, self.canvas_placeholder.height())),
+        )
+
+    def _erase_segment(self, start: QPoint, end: QPoint) -> None:
+        if self._pixmap.isNull():
+            return
+        image = self._pixmap.toImage().convertToFormat(QImage.Format.Format_ARGB32_Premultiplied)
+        painter = QPainter(image)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
+        pen = QPen(Qt.GlobalColor.transparent, self.eraser_size_value.value())
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(pen)
+        painter.drawLine(start, end)
+        painter.end()
+        self._pixmap = QPixmap.fromImage(image)
+        preview = self._pixmap.scaled(
+            self.canvas_placeholder.size(),
+            Qt.AspectRatioMode.IgnoreAspectRatio,
+            Qt.TransformationMode.FastTransformation,
+        )
+        self.canvas_placeholder.setPixmap(preview)
+
+    def _magic_erase_at(self, point: QPoint) -> None:
+        """Clear every visible pixel within tolerance of the clicked colour."""
+        if self._pixmap.isNull():
+            return
+        import numpy as np
+
+        image = self._pixmap.toImage().convertToFormat(QImage.Format.Format_RGBA8888)
+        pixels = np.frombuffer(image.bits(), dtype=np.uint8, count=image.sizeInBytes()).reshape(
+            image.height(), image.bytesPerLine()
+        )
+        rgba = pixels[:, : image.width() * 4].reshape(image.height(), image.width(), 4)
+        x = max(0, min(point.x(), image.width() - 1))
+        y = max(0, min(point.y(), image.height() - 1))
+        target = rgba[y, x, :3].astype(np.int16)
+        difference = np.abs(rgba[:, :, :3].astype(np.int16) - target)
+        tolerance = self.magic_eraser_tolerance_value.value()
+        if self.magic_eraser_contiguous.isChecked():
+            from PIL import Image, ImageDraw
+
+            pil_image = Image.frombytes(
+                "RGBA",
+                (image.width(), image.height()),
+                bytes(image.bits()),
+                "raw",
+                "RGBA",
+                image.bytesPerLine(),
+            )
+            clicked = tuple(int(value) for value in rgba[y, x])
+            ImageDraw.floodfill(
+                pil_image,
+                (x, y),
+                (clicked[0], clicked[1], clicked[2], 0),
+                thresh=tolerance,
+            )
+            data = pil_image.tobytes()
+            image = QImage(
+                data,
+                image.width(),
+                image.height(),
+                image.width() * 4,
+                QImage.Format.Format_RGBA8888,
+            ).copy()
+        else:
+            mask = (difference.max(axis=2) <= tolerance) & (rgba[:, :, 3] > 0)
+            rgba[mask, 3] = 0
+        self._pixmap = QPixmap.fromImage(image)
+        self.set_zoom(self._zoom, smooth=False)
+
+    def _update_eraser_cursor(self) -> None:
+        if not hasattr(self, "canvas_placeholder") or self._active_tool != "Eraser":
+            return
+        diameter = max(7, min(96, round(self.eraser_size_value.value() * self._zoom)))
+        cursor_pixmap = QPixmap(diameter + 4, diameter + 4)
+        cursor_pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(cursor_pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing, True)
+        painter.setPen(QPen(QColor("#FFFFFF"), 1))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawEllipse(2, 2, diameter - 1, diameter - 1)
+        painter.end()
+        centre = cursor_pixmap.width() // 2
+        self.canvas_placeholder.setCursor(QCursor(cursor_pixmap, centre, centre))
+
+    def _clear_active_tool(self) -> None:
+        """Deselect every tool when the user clicks the empty pasteboard."""
+        self.cancel_interactive_crop()
+        self.cancel_selection()
+        self._eraser_drawing = False
+        self.eraser_controls.setVisible(False)
+        self.magic_eraser_controls.setVisible(False)
+        self.canvas_placeholder.unsetCursor()
+        self._active_tool = ""
+        for button in self.tool_labels.values():
+            button.setChecked(False)
+            button.setProperty("active", False)
+            button.style().unpolish(button)
+            button.style().polish(button)
+
     def set_theme_progress(self, progress: float) -> None:
         """Apply the application dark/light transition to document tabs."""
 
@@ -1242,6 +1504,7 @@ class ImageEditorPage(QWidget):
         document.dpi_y = self._dpi_y
         document.modified = self._image_modified
         document.zoom = self._zoom
+        document.rotation = self._image_rotation
         self._update_document_tab(self._active_document_index)
 
     def _update_document_tab(self, index: int) -> None:
@@ -1272,6 +1535,9 @@ class ImageEditorPage(QWidget):
         self._dpi_x = document.dpi_x
         self._dpi_y = document.dpi_y
         self._image_modified = document.modified
+        self._image_rotation = document.rotation
+        with QSignalBlocker(self.rotation_value):
+            self.rotation_value.setValue(self._image_rotation)
         self.canvas_placeholder.setText("")
         self.set_zoom(document.zoom)
         viewport = self.canvas_scroll.viewport().size()
@@ -1324,6 +1590,9 @@ class ImageEditorPage(QWidget):
             self.save_button.setEnabled(False)
             self.trim_button.setEnabled(False)
             self.rotation_value.setEnabled(False)
+            self._image_rotation = 0.0
+            with QSignalBlocker(self.rotation_value):
+                self.rotation_value.setValue(0.0)
             self._update_dimensions()
             self._update_history_actions()
             return
@@ -1363,14 +1632,18 @@ class ImageEditorPage(QWidget):
             return
         # QPixmap is implicitly shared. This snapshot is constant-time until either
         # copy is modified, unlike copy(), which duplicates every high-resolution pixel.
-        document.undo_stack.append((QPixmap(self._pixmap), self._image_modified))
+        document.undo_stack.append(
+            (QPixmap(self._pixmap), self._image_modified, self._image_rotation)
+        )
         if len(document.undo_stack) > 50:
             document.undo_stack.pop(0)
         document.redo_stack.clear()
         self._update_history_actions()
 
-    def _restore_history(self, snapshot: tuple[QPixmap, bool]) -> None:
-        self._pixmap, self._image_modified = snapshot
+    def _restore_history(self, snapshot: tuple[QPixmap, bool, float]) -> None:
+        self._pixmap, self._image_modified, self._image_rotation = snapshot
+        with QSignalBlocker(self.rotation_value):
+            self.rotation_value.setValue(self._image_rotation)
         self.set_zoom(self._zoom)
         self._update_dimensions()
         self._sync_active_document()
@@ -1380,14 +1653,18 @@ class ImageEditorPage(QWidget):
         document = self._current_document()
         if document is None or not document.undo_stack:
             return
-        document.redo_stack.append((QPixmap(self._pixmap), self._image_modified))
+        document.redo_stack.append(
+            (QPixmap(self._pixmap), self._image_modified, self._image_rotation)
+        )
         self._restore_history(document.undo_stack.pop())
 
     def redo(self) -> None:
         document = self._current_document()
         if document is None or not document.redo_stack:
             return
-        document.undo_stack.append((QPixmap(self._pixmap), self._image_modified))
+        document.undo_stack.append(
+            (QPixmap(self._pixmap), self._image_modified, self._image_rotation)
+        )
         self._restore_history(document.redo_stack.pop())
 
     def _update_history_actions(self) -> None:
@@ -1403,6 +1680,12 @@ class ImageEditorPage(QWidget):
         if selected_name != "Select":
             self.cancel_selection()
         self._active_tool = selected_name
+        self.eraser_controls.setVisible(selected_name == "Eraser")
+        self.magic_eraser_controls.setVisible(selected_name == "Magic Eraser")
+        if selected_name != "Eraser":
+            self.canvas_placeholder.unsetCursor()
+        if selected_name == "Magic Eraser":
+            self.canvas_placeholder.setCursor(Qt.CursorShape.CrossCursor)
         for tool_name, button in self.tool_labels.items():
             active = tool_name == selected_name
             button.setChecked(active)
@@ -1413,6 +1696,8 @@ class ImageEditorPage(QWidget):
             self.start_interactive_crop()
         elif selected_name == "Select":
             self.start_selection()
+        elif selected_name == "Eraser":
+            self._update_eraser_cursor()
         self.width_value.setToolTip("Image width")
         self.height_value.setToolTip("Image height")
 
@@ -1470,12 +1755,11 @@ class ImageEditorPage(QWidget):
             self.crop_overlay.update()
         if selection_active:
             self._position_selection_overlay()
-        self.image_info.setText(
-            f"{self._image_path.name}  •  {self._pixmap.width()} × {self._pixmap.height()} px"
-        )
+        self._update_image_info()
         zoom_value = self._zoom * 100
         zoom_text = f"{zoom_value:.1f}" if zoom_value < 1 else str(round(zoom_value))
         self.zoom_percentage.setText(f"{zoom_text}%")
+        self._update_eraser_cursor()
         self._sync_active_document()
 
     def zoom_at(self, factor: float, global_position: QPoint) -> None:
@@ -1540,13 +1824,27 @@ class ImageEditorPage(QWidget):
         image_geometry = self.canvas_placeholder.geometry()
         scale_x = image_geometry.width() / self._pixmap.width()
         scale_y = image_geometry.height() / self._pixmap.height()
-        geometry = QRect(
-            round(image_geometry.x() + bounds.x() * scale_x),
-            round(image_geometry.y() + bounds.y() * scale_y),
-            max(8, round(bounds.width() * scale_x)),
-            max(8, round(bounds.height() * scale_y)),
-        )
-        self.selection_overlay.begin(geometry, image_geometry)
+        if not self._selection_source.isNull() and self._selection_width > 0:
+            width = max(8, round(self._selection_width * scale_x))
+            height = max(8, round(self._selection_height * scale_y))
+            centre_x = image_geometry.x() + self._selection_centre_x * scale_x
+            centre_y = image_geometry.y() + self._selection_centre_y * scale_y
+            geometry = QRect(
+                round(centre_x - width / 2),
+                round(centre_y - height / 2),
+                width,
+                height,
+            )
+        else:
+            geometry = QRect(
+                round(image_geometry.x() + bounds.x() * scale_x),
+                round(image_geometry.y() + bounds.y() * scale_y),
+                max(8, round(bounds.width() * scale_x)),
+                max(8, round(bounds.height() * scale_y)),
+            )
+        # A transformed layer may extend beyond the document canvas. Keeping its
+        # true rectangle on the pasteboard prevents full-canvas artwork from locking.
+        self.selection_overlay.begin(geometry, self.canvas_workspace.rect())
 
     def start_selection(self) -> None:
         bounds = self._visible_pixel_bounds()
@@ -1652,18 +1950,18 @@ class ImageEditorPage(QWidget):
         """Rotate the complete image; the top bar never targets Select artwork."""
         if self._pixmap.isNull():
             return
-        angle = self.rotation_value.value()
-        if abs(angle) < 0.01:
+        requested = self.rotation_value.value()
+        delta = requested - self._image_rotation
+        if abs(delta) < 0.01:
             return
         self.cancel_selection()
         self._push_undo()
         self._pixmap = self._pixmap.transformed(
-            QTransform().rotate(angle),
+            QTransform().rotate(delta),
             Qt.TransformationMode.SmoothTransformation,
         )
+        self._image_rotation = requested
         self._image_modified = True
-        with QSignalBlocker(self.rotation_value):
-            self.rotation_value.setValue(0.0)
         self.set_zoom(self._zoom)
         self._update_dimensions()
         self._sync_active_document()
@@ -1708,7 +2006,32 @@ class ImageEditorPage(QWidget):
         self._dpi_y = resolution
         self._image_modified = True
         self._update_dimensions()
+        self._update_image_info()
         self._sync_active_document()
+
+    def _preview_linked_dimension(self, changed: str, value: float) -> None:
+        """Update the locked partner field live, then resample once on commit."""
+        if self._pixmap.isNull() or not self.aspect_lock_button.isChecked():
+            return
+        aspect = self._pixmap.width() / max(1, self._pixmap.height())
+        target = self.height_value if changed == "width" else self.width_value
+        linked_value = value / aspect if changed == "width" else value * aspect
+        with QSignalBlocker(target):
+            target.setValue(linked_value)
+
+    def _update_image_info(self) -> None:
+        """Expose both pixel and physical size so DPI changes are verifiable."""
+        if self._pixmap.isNull() or self._image_path is None:
+            self.image_info.setText("No image loaded")
+            return
+        print_width = self._pixmap.width() / max(1.0, self._dpi_x)
+        print_height = self._pixmap.height() / max(1.0, self._dpi_y)
+        dpi = (self._dpi_x + self._dpi_y) / 2
+        self.image_info.setText(
+            f"{self._image_path.name}  •  {self._pixmap.width()} × "
+            f"{self._pixmap.height()} px  •  Print {print_width:.2f} × "
+            f"{print_height:.2f} in @ {dpi:.0f} DPI"
+        )
 
     def _finish_current_edit(self) -> None:
         """Commit the active editor operation for Return and numpad Enter."""
@@ -1778,24 +2101,14 @@ class ImageEditorPage(QWidget):
         if width_pixels == base_width and height_pixels == base_height:
             return
         self._push_undo()
-        if self._active_tool == "Crop":
-            canvas = QPixmap(width_pixels, height_pixels)
-            canvas.fill(Qt.GlobalColor.transparent)
-            painter = QPainter(canvas)
-            painter.drawPixmap(
-                (width_pixels - self._pixmap.width()) // 2,
-                (height_pixels - self._pixmap.height()) // 2,
-                self._pixmap,
-            )
-            painter.end()
-            self._pixmap = canvas
-        else:
-            self._pixmap = self._pixmap.scaled(
-                width_pixels,
-                height_pixels,
-                Qt.AspectRatioMode.IgnoreAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
-            )
+        # Top-bar dimensions always resize the complete image. Canvas extension
+        # belongs exclusively to the interactive Crop overlay, never to these fields.
+        self._pixmap = self._pixmap.scaled(
+            width_pixels,
+            height_pixels,
+            Qt.AspectRatioMode.IgnoreAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
         self._image_modified = True
         self.set_zoom(self._zoom)
         self._update_dimensions()

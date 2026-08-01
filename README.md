@@ -17,12 +17,18 @@ Dashboard. Customer files are managed through an in-page workspace:
 Date folders are created explicitly only when work begins, avoiding thousands of
 empty folders.
 
+The integrated multi-document Image Editor opens and saves managed customer
+images and provides fit/zoom/pan, physical or pixel sizing, DPI metadata,
+persistent rotation, per-document history, Trim, outward/inward Crop, off-canvas
+Select transforms, a round transparent Eraser, and tolerance/contiguous Magic
+Eraser.
+
 ## Implemented technology
 
 - Python 3.12
 - PySide6 / Qt Widgets / Qt PDF
 - SQLite + SQLAlchemy 2
-- Alembic migrations (`0001`–`0021`)
+- Alembic migrations (`0001`–`0023`)
 - Pillow and OpenCV
 - Backblaze B2 through the S3-compatible API (`boto3`)
 - Google Drive and Sheets APIs
@@ -96,6 +102,7 @@ Windows builds use `scripts\build_windows.ps1`.
 - [User manual](USER_MANUAL.md)
 - [Deployment](DEPLOYMENT.md)
 - [Release checklist](RELEASE_CHECKLIST.md)
+- [Codex reconstruction commands](CODEX_COMMANDS.md)
 
 ## Version
 

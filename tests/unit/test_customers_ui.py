@@ -207,16 +207,17 @@ def test_customer_folder_opens_maximized_with_adjustable_image_preview(
     assert dialog.table.horizontalHeaderItem(0).text() == "Select"
     assert dialog.table.item(0, 0).flags() & Qt.ItemFlag.ItemIsUserCheckable
     assert dialog.create_today_button.text() == "Create Folders"
-    assert dialog.search_files_button.toolTip() == (
-        "Search all customers by design number or date"
-    )
+    assert dialog.search_files_button.toolTip() == ("Search all customers by design number or date")
     assert dialog.image_search_button.toolTip() == "Search all customers using an image"
-    assert [button.text() for button in (
-        dialog.upload_button,
-        dialog.edit_button,
-        dialog.copy_to_button,
-        dialog.delete_file_button,
-    )] == ["Upload", "Edit", "Copy To", "Delete"]
+    assert [
+        button.text()
+        for button in (
+            dialog.upload_button,
+            dialog.edit_button,
+            dialog.copy_to_button,
+            dialog.delete_file_button,
+        )
+    ] == ["Upload", "Edit", "Copy To", "Delete"]
 
 
 def test_customer_file_download_preserves_original_format(qtbot, tmp_path, monkeypatch) -> None:
@@ -281,9 +282,7 @@ def test_customer_image_editor_contains_planned_tool_buttons(qtbot, tmp_path) ->
     assert editor.preview.pixmap().isNull() is False
 
 
-def test_customer_files_support_batch_download_and_copy_to(
-    qtbot, tmp_path, monkeypatch
-) -> None:
+def test_customer_files_support_batch_download_and_copy_to(qtbot, tmp_path, monkeypatch) -> None:
     downloaded: list[tuple[int, Path]] = []
     pasted: list[tuple[int, int, str, str]] = []
     files = [
@@ -320,6 +319,7 @@ def test_customer_files_support_batch_download_and_copy_to(
         "app.ui.pages.customers.QFileDialog.getExistingDirectory",
         lambda *args: str(tmp_path / "downloads"),
     )
+
     class FakeCopyDestination:
         def __init__(self, service, parent):
             pass

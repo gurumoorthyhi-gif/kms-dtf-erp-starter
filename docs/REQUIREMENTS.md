@@ -56,13 +56,29 @@ Status: current implemented baseline plus explicitly identified future work.
 - Multi-item orders with calculated totals, advance, balance, and status history.
 - Managed artwork originals, previews, versions, metadata, and approvals.
 - Artwork Studio edits remain non-destructive.
-- Provide a separate Image Editor navigation page with a tool-name rail, central
-  canvas, and Layers/Channels inspector. Tool behavior remains future work until
-  each tool is specified.
-- Image Editor Open and Save use managed customer dated folders. Import reads
-  from a local system folder. Loaded images display at native pixel dimensions
-  and Save retains the original encoded bytes until an editing tool changes them.
+- Provide a separate multi-document Image Editor with a tool rail, dark
+  pasteboard, checkerboard image canvas, Layers/Channels inspector, closable and
+  movable tabs, per-document zoom/state/history, and dark/light tab styling.
+- Image Editor Open and Save use managed customer dated folders. The managed
+  browser imports multiple local designs into the selected date's Design folder.
   Saving an image opened from a customer folder replaces that same managed file.
+- Support mouse-wheel zoom from 0.5% to 800%, cursor-centred zoom anchoring,
+  middle-button two-axis pan, fit-on-open capped at 100%, and visible zoom status.
+- Width and Height always resize the complete image in inches, millimetres,
+  centimetres, or pixels. Aspect lock updates the paired entry live and resamples
+  once on commit. Rotate is absolute and persistent per document. DPI changes
+  physical print dimensions and saved metadata without changing pixel count.
+- Support per-document Undo/Redo; transparent-edge Trim; eight-handle Crop with
+  inward crop/outward transparent extension; and Select with move, proportional
+  corner resize, true off-canvas transform bounds, and pristine-source rendering.
+- Support a round Eraser with a 1-500 px linked size control, circular cursor,
+  transparent continuous strokes, and one undo step per stroke.
+- Support Magic Eraser with 0-255 tolerance and a default-on Contiguous option.
+  Contiguous erases only the connected clicked region; unchecked mode removes
+  matching colors throughout the image.
+- Return and numpad Enter commit current numeric/Crop work. Shortcuts include
+  Ctrl+O, Ctrl+S, Ctrl+Z, Ctrl+Shift+Z, Ctrl+T, C for Crop, and V for Select.
+- Clicking empty pasteboard deselects all tools without affecting image clicks.
 - Gangsheet layouts use millimetres and deterministic high-resolution export.
 
 ## 6. Operations

@@ -116,11 +116,9 @@ class OrderService:
                 pass
             elif status == "Cancelled":
                 raise ValueError("Completed order cannot be canceled")
-            elif (
-                status not in QUICK_STATUS_PROGRESSION
-                or QUICK_STATUS_PROGRESSION.index(status)
-                <= QUICK_STATUS_PROGRESSION.index(current.status)
-            ):
+            elif status not in QUICK_STATUS_PROGRESSION or QUICK_STATUS_PROGRESSION.index(
+                status
+            ) <= QUICK_STATUS_PROGRESSION.index(current.status):
                 raise ValueError("Order status cannot be reversed")
         order = self.repository.change_status(
             order_id,
