@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPixmap
-from PySide6.QtWidgets import QDialog, QDialogButtonBox
+from PySide6.QtWidgets import QDialog, QDialogButtonBox, QMessageBox
 
 from app.modules.customers import CustomerSummary, CustomerValidationError
 from app.ui.pages import (
@@ -57,23 +57,30 @@ def test_customer_page_loads_and_filters_service_data(qtbot) -> None:
     assert service.queries[-1] == ("Business", True)
 
 
-def test_customer_form_builds_typed_input(qtbot) -> None:
+def test_customer_form_save_copies_confirmed_phone_and_billing_details(qtbot, monkeypatch) -> None:
     dialog = CustomerFormDialog()
     qtbot.addWidget(dialog)
     dialog.name.setText("Customer Two")
     dialog.phone.setText("9876543210")
-    dialog.same_as_phone_button.click()
     dialog.billing.village_city.setText("Chennai")
     dialog.billing.landmark.setText("Near Central Station")
     dialog.billing.district.setText("Chennai")
     dialog.billing.state.setCurrentText("Tamil Nadu")
-    dialog.same_as_billing_button.click()
     dialog.preferred_courier.setCurrentText("OTHER TRANSPORT")
     dialog.other_transport_name.setText("KPN Travels")
     dialog.preferred_rate.setText("42.75")
+    saved = []
+    dialog.set_save_operation(saved.append)
+    monkeypatch.setattr(
+        "app.ui.pages.customers.QMessageBox.question",
+        lambda *args: QMessageBox.StandardButton.Yes,
+    )
 
-    data = dialog.customer_input()
+    dialog.buttons.button(QDialogButtonBox.StandardButton.Save).click()
 
+    data = saved[0]
+    assert not hasattr(dialog, "same_as_phone_button")
+    assert not hasattr(dialog, "same_as_billing_button")
     assert data.code == ""
     assert data.name == "Customer Two"
     assert data.whatsapp_number == "9876543210"
@@ -86,6 +93,38 @@ def test_customer_form_builds_typed_input(qtbot) -> None:
     assert data.shipping_address.landmark == "Near Central Station"
     assert data.shipping_address.district == "Chennai"
     assert data.shipping_address.state == "Tamil Nadu"
+
+
+def test_customer_form_no_confirmation_keeps_form_open_for_separate_details(
+    qtbot, monkeypatch
+) -> None:
+    dialog = CustomerFormDialog()
+    qtbot.addWidget(dialog)
+    dialog.show()
+    dialog.phone.setText("9876543210")
+    dialog.billing.village_city.setText("Chennai")
+    saved = []
+    dialog.set_save_operation(saved.append)
+    monkeypatch.setattr(
+        "app.ui.pages.customers.QMessageBox.question",
+        lambda *args: QMessageBox.StandardButton.No,
+    )
+
+    dialog.buttons.button(QDialogButtonBox.StandardButton.Save).click()
+    qtbot.wait(10)
+
+    assert saved == []
+    assert dialog.isVisible()
+    assert dialog.whatsapp.hasFocus()
+    assert dialog.whatsapp.text() == ""
+    assert dialog.shipping.village_city.text() == ""
+
+    dialog.whatsapp.setText("9123456780")
+    dialog.shipping.village_city.setText("Salem")
+    dialog.buttons.button(QDialogButtonBox.StandardButton.Save).click()
+
+    assert saved[0].whatsapp_number == "9123456780"
+    assert saved[0].shipping_address.city == "Salem"
 
 
 def test_customer_form_stays_open_when_save_validation_fails(qtbot, monkeypatch) -> None:
@@ -104,6 +143,10 @@ def test_customer_form_stays_open_when_save_validation_fails(qtbot, monkeypatch)
     monkeypatch.setattr(
         "app.ui.pages.customers.QMessageBox.warning",
         lambda _parent, title, message: warnings.append((title, message)),
+    )
+    monkeypatch.setattr(
+        "app.ui.pages.customers.QMessageBox.question",
+        lambda *args: QMessageBox.StandardButton.Yes,
     )
     dialog.set_save_operation(save_customer)
 
@@ -207,6 +250,11 @@ def test_customer_folder_opens_maximized_with_adjustable_image_preview(
     assert dialog.table.horizontalHeaderItem(0).text() == "Select"
     assert dialog.table.item(0, 0).flags() & Qt.ItemFlag.ItemIsUserCheckable
     assert dialog.create_today_button.text() == "Create Folders"
+    assert dialog.tree.currentItem().text(0) == "Design"
+    assert dialog.upload_button.isEnabled()
+    dialog.tree.setCurrentItem(dialog.tree.topLevelItem(0).child(1))
+    assert dialog.tree.currentItem().text(0) == "Gangsheet"
+    assert not dialog.upload_button.isEnabled()
     assert dialog.search_files_button.toolTip() == ("Search all customers by design number or date")
     assert dialog.image_search_button.toolTip() == "Search all customers using an image"
     assert [

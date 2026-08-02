@@ -671,6 +671,7 @@ def test_image_editor_magic_eraser_removes_matching_colour_with_tolerance(qtbot,
     page.magic_eraser_tolerance_slider.setValue(10)
     assert page.magic_eraser_tolerance_value.value() == 10
     assert page.magic_eraser_contiguous.isChecked() is True
+    assert page.magic_eraser_contiguous.text() == "Contiguous: ON"
 
     page._push_undo()
     page._magic_erase_at(QPoint(2, 2))
@@ -682,7 +683,9 @@ def test_image_editor_magic_eraser_removes_matching_colour_with_tolerance(qtbot,
     page.undo()
     assert page._pixmap.toImage().pixelColor(2, 2).alpha() == 255
 
-    page.magic_eraser_contiguous.setChecked(False)
+    qtbot.mouseClick(page.magic_eraser_contiguous, Qt.MouseButton.LeftButton)
+    assert page.magic_eraser_contiguous.isChecked() is False
+    assert page.magic_eraser_contiguous.text() == "Contiguous: OFF"
     page._push_undo()
     page._magic_erase_at(QPoint(2, 2))
     erased = page._pixmap.toImage()

@@ -193,6 +193,7 @@ class CustomerFormDialog(QDialog):
         layout.setSpacing(14)
         self._customer_code = customer.summary.code if customer else ""
         self._save_operation = None
+        self._detail_relationship_confirmed = False
 
         columns = QHBoxLayout()
         columns.setSpacing(18)
@@ -239,16 +240,8 @@ class CustomerFormDialog(QDialog):
         ):
             field.setObjectName("customerInput")
             form.addRow(label, field)
-        whatsapp_row = QWidget()
-        whatsapp_layout = QHBoxLayout(whatsapp_row)
-        whatsapp_layout.setContentsMargins(0, 0, 0, 0)
         self.whatsapp.setObjectName("customerInput")
-        self.same_as_phone_button = QPushButton("Same as phone")
-        self.same_as_phone_button.setObjectName("secondaryButton")
-        self.same_as_phone_button.clicked.connect(lambda: self.whatsapp.setText(self.phone.text()))
-        whatsapp_layout.addWidget(self.whatsapp, 1)
-        whatsapp_layout.addWidget(self.same_as_phone_button)
-        form.addRow("WhatsApp number", whatsapp_row)
+        form.addRow("WhatsApp number", self.whatsapp)
         form.addRow("Delivery type", self.delivery_type)
         form.addRow("Preferred courier *", self.preferred_courier)
         form.addRow("Other transport name *", self.other_transport_name)
@@ -280,9 +273,9 @@ class CustomerFormDialog(QDialog):
         address_title.setObjectName("detailsTitle")
         address_layout.addWidget(address_title)
 
-        address_scroll = QScrollArea()
-        address_scroll.setWidgetResizable(True)
-        address_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.address_scroll = QScrollArea()
+        self.address_scroll.setWidgetResizable(True)
+        self.address_scroll.setFrameShape(QFrame.Shape.NoFrame)
         address_content = QWidget()
         address_content_layout = QVBoxLayout(address_content)
         address_content_layout.setContentsMargins(0, 0, 8, 0)
@@ -295,24 +288,13 @@ class CustomerFormDialog(QDialog):
         address_content_layout.addWidget(billing_title)
         address_content_layout.addWidget(self.billing)
 
-        shipping_heading = QWidget()
-        shipping_heading_layout = QHBoxLayout(shipping_heading)
-        shipping_heading_layout.setContentsMargins(0, 0, 0, 0)
         shipping_title = QLabel("Shipping address")
         shipping_title.setObjectName("sectionTitle")
-        self.same_as_billing_button = QPushButton("Same as billing address")
-        self.same_as_billing_button.setObjectName("secondaryButton")
-        self.same_as_billing_button.clicked.connect(
-            lambda: self.shipping.set_value(self.billing.value())
-        )
-        shipping_heading_layout.addWidget(shipping_title)
-        shipping_heading_layout.addStretch()
-        shipping_heading_layout.addWidget(self.same_as_billing_button)
-        address_content_layout.addWidget(shipping_heading)
+        address_content_layout.addWidget(shipping_title)
         address_content_layout.addWidget(self.shipping)
         address_content_layout.addStretch()
-        address_scroll.setWidget(address_content)
-        address_layout.addWidget(address_scroll, 1)
+        self.address_scroll.setWidget(address_content)
+        address_layout.addWidget(self.address_scroll, 1)
 
         columns.addWidget(customer_panel, 1)
         columns.addWidget(address_panel, 1)
@@ -336,6 +318,23 @@ class CustomerFormDialog(QDialog):
         self._save_operation = operation
 
     def _attempt_save(self) -> None:
+        if not self._detail_relationship_confirmed:
+            same_details = QMessageBox.question(
+                self,
+                "Confirm customer details",
+                "Are the WhatsApp number and shipping address the same as the "
+                "phone number and billing address above?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            self._detail_relationship_confirmed = True
+            if same_details == QMessageBox.StandardButton.Yes:
+                self.whatsapp.setText(self.phone.text())
+                self.shipping.set_value(self.billing.value())
+            else:
+                self.address_scroll.ensureWidgetVisible(self.shipping)
+                QTimer.singleShot(0, self.whatsapp.setFocus)
+                return
         if self._save_operation is None:
             self.accept()
             return
@@ -504,7 +503,7 @@ class CopyFilesToDialog(QDialog):
             self.customer.addItem(item.display_identifier, item.id)
         self.date_folder = QComboBox()
         self.content_folder = QComboBox()
-        self.content_folder.addItems(CUSTOMER_STORAGE_FOLDERS)
+        self.content_folder.addItem("Design")
         form.addRow("Customer", self.customer)
         form.addRow("Date folder", self.date_folder)
         form.addRow("Folder", self.content_folder)
@@ -755,6 +754,7 @@ class CustomerFolderDialog(QDialog):
             lambda item: self._update_file_actions() if item.column() == 0 else None
         )
         self.upload_button.clicked.connect(self.upload_file)
+        self.upload_button.setToolTip("Manual imports are allowed only in the Design folder")
         self.create_today_button.clicked.connect(self.create_today_folder)
         self.search_files_button.clicked.connect(self.search_files)
         self.image_search_button.clicked.connect(self.search_by_image)
@@ -1041,7 +1041,8 @@ class CustomerFolderDialog(QDialog):
                 self.table.setItem(row, column + 1, QTableWidgetItem(value))
             if item.id == selected_id:
                 self.table.selectRow(row)
-        self.upload_button.setEnabled(self._selection() is not None)
+        selection = self._selection()
+        self.upload_button.setEnabled(selection is not None and selection[1] == "Design")
         self._update_file_actions()
         if any(item.transfer_state == "queued" for item in files):
             self._status_timer.start()
@@ -1087,7 +1088,7 @@ class CustomerFolderDialog(QDialog):
 
     def upload_file(self) -> None:
         selection = self._selection()
-        if selection is None:
+        if selection is None or selection[1] != "Design":
             return
         filenames, _ = QFileDialog.getOpenFileNames(self, "Upload customer files")
         if not filenames:

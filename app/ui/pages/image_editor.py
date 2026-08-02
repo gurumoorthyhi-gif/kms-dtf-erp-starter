@@ -31,7 +31,6 @@ from PySide6.QtGui import (
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QApplication,
-    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -1101,11 +1100,16 @@ class ImageEditorPage(QWidget):
         self.magic_eraser_tolerance_value = QSpinBox()
         self.magic_eraser_tolerance_value.setRange(0, 255)
         self.magic_eraser_tolerance_value.setValue(24)
-        self.magic_eraser_contiguous = QCheckBox("Contiguous")
+        self.magic_eraser_contiguous = QPushButton()
+        self.magic_eraser_contiguous.setObjectName("magicEraserContiguous")
+        self.magic_eraser_contiguous.setCheckable(True)
         self.magic_eraser_contiguous.setChecked(True)
-        self.magic_eraser_contiguous.setToolTip(
-            "Erase only matching pixels connected to the clicked area"
+        self.magic_eraser_contiguous.setMinimumHeight(30)
+        self.magic_eraser_contiguous.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.magic_eraser_contiguous.toggled.connect(
+            self._update_magic_eraser_contiguous_state
         )
+        self._update_magic_eraser_contiguous_state(True)
         magic_layout.addWidget(self.magic_eraser_tolerance_slider)
         magic_layout.addWidget(self.magic_eraser_tolerance_value)
         magic_layout.addWidget(self.magic_eraser_contiguous)
@@ -1230,6 +1234,22 @@ class ImageEditorPage(QWidget):
             QPushButton#aspectLockButton:checked {
                 background: rgba(108, 92, 231, 42);
                 border-color: rgba(108, 92, 231, 100);
+            }
+            QPushButton#magicEraserContiguous {
+                color: #273151;
+                background: rgba(108, 92, 231, 18);
+                border: 1px solid rgba(108, 92, 231, 55);
+                border-radius: 7px;
+                padding: 4px 9px;
+                font: 600 11px "Segoe UI";
+            }
+            QPushButton#magicEraserContiguous:checked {
+                color: #FFFFFF;
+                background: #6C5CE7;
+                border-color: #5147B8;
+            }
+            QPushButton#magicEraserContiguous:hover {
+                border-color: #6C5CE7;
             }
             QScrollArea#imageEditorCanvasScroll {
                 border: 0;
@@ -1416,6 +1436,16 @@ class ImageEditorPage(QWidget):
             rgba[mask, 3] = 0
         self._pixmap = QPixmap.fromImage(image)
         self.set_zoom(self._zoom, smooth=False)
+
+    def _update_magic_eraser_contiguous_state(self, checked: bool) -> None:
+        """Make the Magic Eraser selection mode unmistakable in the toolbar."""
+        state = "ON" if checked else "OFF"
+        self.magic_eraser_contiguous.setText(f"Contiguous: {state}")
+        self.magic_eraser_contiguous.setToolTip(
+            "Erase only connected matching pixels"
+            if checked
+            else "Erase matching pixels everywhere in the image"
+        )
 
     def _update_eraser_cursor(self) -> None:
         if not hasattr(self, "canvas_placeholder") or self._active_tool != "Eraser":
