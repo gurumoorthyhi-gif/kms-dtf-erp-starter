@@ -255,6 +255,13 @@ def test_customer_creation_prepares_logical_storage_without_network_wait(
     )
     assert uploaded.transfer_state == "queued"
     assert uploaded.original_name == "CR0001 - DE1 - front-design.png"
+    assert service.next_customer_design_filenames(
+        created.summary.id,
+        ["front-new.png", "back-new.png"],
+    ) == [
+        "CR0001 - DE2 - front-new.png",
+        "CR0001 - DE3 - back-new.png",
+    ]
     second_design = tmp_path / "back-design.png"
     second_design.write_bytes(b"more pixels")
     second_uploaded = service.upload_customer_file(

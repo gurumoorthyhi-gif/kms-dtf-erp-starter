@@ -26,6 +26,9 @@ class Placement:
     height_mm: Decimal
     rotation_degrees: int
     z_index: int
+    original_path: str = ""
+    copy_group_id: int | None = None
+    mirrored: bool = False
 
 
 @dataclass(frozen=True, slots=True)

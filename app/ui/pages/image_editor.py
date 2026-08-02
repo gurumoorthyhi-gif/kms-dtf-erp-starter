@@ -2271,6 +2271,15 @@ class ImageEditorPage(QWidget):
             self.load_image(path, source_file_id=record.id)
 
     def load_image(self, path: Path, *, source_file_id: int | None = None) -> bool:
+        requested_path = path.resolve()
+        for index, document in enumerate(self._documents):
+            same_managed_file = (
+                source_file_id is not None and document.source_file_id == source_file_id
+            )
+            if same_managed_file or document.path.resolve() == requested_path:
+                self.document_tabs.setCurrentIndex(index)
+                self._activate_document(index)
+                return True
         reader = QImageReader(str(path))
         reader.setAutoTransform(True)
         image = reader.read()

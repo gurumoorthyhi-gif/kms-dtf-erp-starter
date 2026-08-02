@@ -5,8 +5,17 @@ from __future__ import annotations
 from collections.abc import Callable
 from decimal import Decimal
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QBrush, QColor, QPainter, QPen, QPixmap
+from PySide6.QtCore import QPoint, QPointF, QRectF, QSize, Qt
+from PySide6.QtGui import (
+    QBrush,
+    QColor,
+    QImageReader,
+    QPainter,
+    QPainterPath,
+    QPen,
+    QPixmap,
+    QTransform,
+)
 from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
@@ -28,7 +37,9 @@ from PySide6.QtWidgets import (
 from app.modules.artwork import ArtworkService
 from app.modules.gang_sheets import GangSheetDetails, GangSheetInput, GangSheetService, Placement
 
-PIXELS_PER_MM = 2
+# Specification scale: 10 scene pixels per centimetre.
+PIXELS_PER_MM = 1
+HANDLE_SIZE = 8
 
 
 class LayoutHistory:
@@ -62,18 +73,187 @@ class PlacementItem(QGraphicsPixmapItem):
         placement: Placement,
         pixmap: QPixmap,
         moved: Callable[[int, Decimal, Decimal], None],
+        resized: Callable[[int, Decimal, Decimal, Decimal, Decimal], None] | None = None,
+        allowed_rect: QRectF | None = None,
     ) -> None:
-        super().__init__(pixmap)
+        super().__init__()
         self.placement_id = placement.id
+        self.source_pixmap = (
+            pixmap.transformed(QTransform().scale(-1, 1)) if placement.mirrored else pixmap
+        )
+        self.copy_group_id = placement.copy_group_id
+        self.width_mm = float(placement.width_mm)
+        self.height_mm = float(placement.height_mm)
         self._moved = moved
+        self._resized = resized
+        self.allowed_rect = allowed_rect or QRectF()
+        self._active_handle: str | None = None
+        self._resize_start = QPointF()
+        self._start_width = self.width_mm
+        self._start_height = self.height_mm
+        self._start_position = QPointF()
         self.setFlags(
             QGraphicsPixmapItem.GraphicsItemFlag.ItemIsMovable
             | QGraphicsPixmapItem.GraphicsItemFlag.ItemIsSelectable
         )
+        self.setAcceptHoverEvents(True)
         self.setPos(float(placement.x_mm) * PIXELS_PER_MM, float(placement.y_mm) * PIXELS_PER_MM)
         self.setRotation(placement.rotation_degrees)
 
+    def _content_rect(self) -> QRectF:
+        return QRectF(0, 0, self.width_mm * PIXELS_PER_MM, self.height_mm * PIXELS_PER_MM)
+
+    def itemChange(self, change, value):  # type: ignore[no-untyped-def]
+        if (
+            change == QGraphicsPixmapItem.GraphicsItemChange.ItemPositionChange
+            and self.scene() is not None
+        ):
+            proposed = QPointF(value)
+            sheet = (
+                self.allowed_rect
+                if not self.allowed_rect.isNull()
+                else self.scene().sceneRect()
+            )
+            members = [self]
+            if self.copy_group_id is not None:
+                members = [
+                    item
+                    for item in self.scene().items()
+                    if isinstance(item, PlacementItem)
+                    and item.copy_group_id == self.copy_group_id
+                ]
+            bounds = QRectF()
+            for member in members:
+                member_rect = member.mapRectToScene(member._content_rect())
+                bounds = member_rect if bounds.isNull() else bounds.united(member_rect)
+            delta = proposed - self.pos()
+            delta.setX(
+                max(sheet.left() - bounds.left(), min(delta.x(), sheet.right() - bounds.right()))
+            )
+            delta.setY(
+                max(sheet.top() - bounds.top(), min(delta.y(), sheet.bottom() - bounds.bottom()))
+            )
+            return self.pos() + delta
+        return super().itemChange(change, value)
+
+    def boundingRect(self) -> QRectF:
+        return self._content_rect().adjusted(
+            -HANDLE_SIZE, -HANDLE_SIZE, HANDLE_SIZE, HANDLE_SIZE
+        )
+
+    def shape(self) -> QPainterPath:
+        path = QPainterPath()
+        path.addRect(self.boundingRect())
+        return path
+
+    def paint(self, painter: QPainter, _option, _widget=None) -> None:
+        content = self._content_rect()
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        painter.drawPixmap(content.toRect(), self.source_pixmap)
+        if not self.isSelected():
+            return
+        painter.setPen(QPen(QColor("#00D9FF"), 2, Qt.PenStyle.DashLine))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRect(content)
+        painter.setBrush(QColor("#00D9FF"))
+        painter.setPen(QPen(QColor("#FFFFFF"), 1))
+        for point in self._handles().values():
+            painter.drawRect(
+                QRectF(
+                    point.x() - HANDLE_SIZE / 2,
+                    point.y() - HANDLE_SIZE / 2,
+                    HANDLE_SIZE,
+                    HANDLE_SIZE,
+                )
+            )
+
+    def _handles(self) -> dict[str, QPointF]:
+        rect = self._content_rect()
+        return {
+            "top_left": rect.topLeft(),
+            "top_right": rect.topRight(),
+            "bottom_right": rect.bottomRight(),
+            "bottom_left": rect.bottomLeft(),
+        }
+
+    def _handle_at(self, position: QPointF) -> str | None:
+        for name, point in self._handles().items():
+            target = QRectF(
+                point.x() - HANDLE_SIZE,
+                point.y() - HANDLE_SIZE,
+                HANDLE_SIZE * 2,
+                HANDLE_SIZE * 2,
+            )
+            if target.contains(position):
+                return name
+        return None
+
+    def mousePressEvent(self, event) -> None:  # type: ignore[no-untyped-def]
+        handle = self._handle_at(event.pos()) if self.isSelected() else None
+        if handle is not None:
+            self._active_handle = handle
+            self._resize_start = event.pos()
+            self._start_width = self.width_mm
+            self._start_height = self.height_mm
+            self._start_position = self.pos()
+            event.accept()
+            return
+        super().mousePressEvent(event)
+        if self.copy_group_id is None or self.scene() is None:
+            return
+        if event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            for item in self.scene().selectedItems():
+                if isinstance(item, PlacementItem):
+                    item.setSelected(item is self)
+            return
+        for item in self.scene().items():
+            if isinstance(item, PlacementItem) and item.copy_group_id == self.copy_group_id:
+                item.setSelected(True)
+
+    def mouseMoveEvent(self, event) -> None:  # type: ignore[no-untyped-def]
+        if self._active_handle is None:
+            super().mouseMoveEvent(event)
+            return
+        delta = event.pos() - self._resize_start
+        width_delta = delta.x() if "right" in self._active_handle else -delta.x()
+        height_delta = delta.y() if "bottom" in self._active_handle else -delta.y()
+        ratio = self._start_width / max(self._start_height, 0.01)
+        width = max(2.0, self._start_width + width_delta / PIXELS_PER_MM)
+        height = max(2.0, self._start_height + height_delta / PIXELS_PER_MM)
+        if abs(width_delta) >= abs(height_delta):
+            height = width / ratio
+        else:
+            width = height * ratio
+        scene_rect = self.allowed_rect
+        maximum_width = max(2.0, scene_rect.right() - self._start_position.x())
+        maximum_height = max(2.0, scene_rect.bottom() - self._start_position.y())
+        scale = min(1.0, maximum_width / width, maximum_height / height)
+        width *= scale
+        height *= scale
+        self.prepareGeometryChange()
+        self.width_mm, self.height_mm = width, height
+        position = QPointF(self._start_position)
+        if "left" in self._active_handle:
+            position.setX(self._start_position.x() + self._start_width - width)
+        if "top" in self._active_handle:
+            position.setY(self._start_position.y() + self._start_height - height)
+        self.setPos(position)
+        self.update()
+        event.accept()
+
     def mouseReleaseEvent(self, event) -> None:
+        if self._active_handle is not None:
+            self._active_handle = None
+            if self._resized is not None:
+                self._resized(
+                    self.placement_id,
+                    Decimal(str(self.x())).quantize(Decimal("0.01")),
+                    Decimal(str(self.y())).quantize(Decimal("0.01")),
+                    Decimal(str(self.width_mm)).quantize(Decimal("0.01")),
+                    Decimal(str(self.height_mm)).quantize(Decimal("0.01")),
+                )
+            event.accept()
+            return
         super().mouseReleaseEvent(event)
         self._moved(
             self.placement_id,
@@ -91,26 +271,60 @@ class GangSheetCanvas(QGraphicsView):
         self.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
         self.setMinimumSize(500, 500)
         self.view_mode = "Normal"
-        self.preview_colour = QColor("#ffffff")
+        self.preview_colour: QColor | None = None
+        self.setBackgroundBrush(QBrush(QColor("#111111")))
+        self.setTransformationAnchor(QGraphicsView.ViewportAnchor.AnchorUnderMouse)
+        self.setResizeAnchor(QGraphicsView.ViewportAnchor.AnchorViewCenter)
+        self._middle_panning = False
+        self._last_pan_position = QPoint()
+
+    def set_sheet_size(self, width_mm: Decimal, length_mm: Decimal) -> None:
+        self.canvas_scene.setSceneRect(
+            0,
+            0,
+            float(width_mm) * PIXELS_PER_MM,
+            float(length_mm) * PIXELS_PER_MM,
+        )
+        self.fitInView(self.canvas_scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
+        self.viewport().update()
 
     def set_view_mode(self, mode: str) -> None:
         self.view_mode = mode
 
     def set_preview_colour(self, colour: str) -> None:
         self.preview_colour = QColor(colour)
-        self.canvas_scene.setBackgroundBrush(QBrush(self.preview_colour))
+        self.viewport().update()
+
+    def drawBackground(self, painter: QPainter, rect) -> None:  # type: ignore[no-untyped-def]
+        painter.fillRect(rect, QColor("#111111"))
+        sheet = self.canvas_scene.sceneRect()
+        painter.save()
+        painter.setClipRect(sheet)
+        if self.preview_colour is not None:
+            painter.fillRect(sheet, self.preview_colour)
+        else:
+            tile = 16
+            painter.fillRect(sheet, QColor("#FFFFFF"))
+            painter.setBrush(QColor("#D8D8D8"))
+            painter.setPen(Qt.PenStyle.NoPen)
+            for y in range(int(sheet.top()), int(sheet.bottom()) + tile, tile):
+                for x in range(int(sheet.left()), int(sheet.right()) + tile, tile):
+                    if (x // tile + y // tile) % 2 == 0:
+                        painter.drawRect(x, y, tile, tile)
+        painter.restore()
 
     def render_sheet(
         self,
         details: GangSheetDetails,
         service: GangSheetService,
         moved: Callable[[int, Decimal, Decimal], None],
+        resized: Callable[[int, Decimal, Decimal, Decimal, Decimal], None] | None = None,
     ) -> None:
+        selected_ids = set(self.selected_ids())
         self.canvas_scene.clear()
         width = float(details.width_mm) * PIXELS_PER_MM
         height = float(details.length_mm) * PIXELS_PER_MM
         self.canvas_scene.setSceneRect(0, 0, width, height)
-        self.canvas_scene.setBackgroundBrush(QBrush(self.preview_colour))
         for placement in details.items:
             target_width = max(1, round(float(placement.width_mm) * PIXELS_PER_MM))
             target_height = max(1, round(float(placement.height_mm) * PIXELS_PER_MM))
@@ -122,14 +336,40 @@ class GangSheetCanvas(QGraphicsView):
                 painter.drawRect(1, 1, max(1, target_width - 2), max(1, target_height - 2))
                 painter.end()
             else:
-                pixmap = QPixmap(str(service.preview_file(placement.preview_path)))
-                pixmap = pixmap.scaled(
-                    target_width,
-                    target_height,
-                    Qt.AspectRatioMode.IgnoreAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation,
+                source_path = (
+                    service.original_file(placement.original_path)
+                    if placement.original_path
+                    else service.preview_file(placement.preview_path)
                 )
-            self.canvas_scene.addItem(PlacementItem(placement, pixmap, moved))
+                reader = QImageReader(str(source_path))
+                reader.setAutoTransform(True)
+                source_size = reader.size()
+                preview_limit = 4096 if self.view_mode == "Enhanced" else 3072
+                source_longest_side = max(source_size.width(), source_size.height())
+                if source_size.isValid() and source_longest_side > preview_limit:
+                    source_size.scale(
+                        QSize(preview_limit, preview_limit),
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                    )
+                    reader.setScaledSize(source_size)
+                pixmap = QPixmap.fromImage(reader.read())
+                if pixmap.isNull():
+                    pixmap = QPixmap(str(service.preview_file(placement.preview_path)))
+            allowed_rect = self.canvas_scene.sceneRect().adjusted(
+                float(details.margin_mm),
+                float(details.margin_mm),
+                -float(details.margin_mm),
+                -float(details.margin_mm),
+            )
+            graphics_item = PlacementItem(
+                placement,
+                pixmap,
+                moved,
+                resized,
+                allowed_rect,
+            )
+            self.canvas_scene.addItem(graphics_item)
+            graphics_item.setSelected(placement.id in selected_ids)
         self.fitInView(self.canvas_scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
 
     def wheelEvent(self, event) -> None:  # type: ignore[no-untyped-def]
@@ -139,6 +379,43 @@ class GangSheetCanvas(QGraphicsView):
             event.accept()
             return
         super().wheelEvent(event)
+
+    def mousePressEvent(self, event) -> None:  # type: ignore[no-untyped-def]
+        if event.button() == Qt.MouseButton.MiddleButton:
+            self._middle_panning = True
+            self._last_pan_position = event.position().toPoint()
+            self.viewport().setCursor(Qt.CursorShape.ClosedHandCursor)
+            event.accept()
+            return
+        if (
+            event.button() == Qt.MouseButton.LeftButton
+            and self.itemAt(event.position().toPoint()) is None
+        ):
+            self.canvas_scene.clearSelection()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event) -> None:  # type: ignore[no-untyped-def]
+        if self._middle_panning:
+            position = event.position().toPoint()
+            delta = position - self._last_pan_position
+            self._last_pan_position = position
+            self.horizontalScrollBar().setValue(
+                self.horizontalScrollBar().value() - delta.x()
+            )
+            self.verticalScrollBar().setValue(
+                self.verticalScrollBar().value() - delta.y()
+            )
+            event.accept()
+            return
+        super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:  # type: ignore[no-untyped-def]
+        if event.button() == Qt.MouseButton.MiddleButton and self._middle_panning:
+            self._middle_panning = False
+            self.viewport().unsetCursor()
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
 
     def selected_ids(self) -> tuple[int, ...]:
         return tuple(

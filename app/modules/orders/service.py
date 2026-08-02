@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import date
 from decimal import Decimal
 
@@ -81,6 +82,7 @@ class OrderService:
             priority=data.priority,
             due_date=data.due_date,
             notes=data.notes.strip(),
+            design_file_ids=data.design_file_ids,
             subtotal=subtotal,
             discount=discount,
             tax=tax,
@@ -182,6 +184,12 @@ class OrderService:
 
     @classmethod
     def _details(cls, order) -> OrderDetails:
+        try:
+            design_file_ids = tuple(
+                int(value) for value in json.loads(order.design_file_ids or "[]")
+            )
+        except (TypeError, ValueError, json.JSONDecodeError):
+            design_file_ids = ()
         return OrderDetails(
             summary=cls._summary(order),
             notes=order.notes,
@@ -202,4 +210,5 @@ class OrderService:
                 )
                 for item in order.status_history
             ),
+            design_file_ids=design_file_ids,
         )

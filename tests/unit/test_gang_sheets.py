@@ -3,6 +3,8 @@ from decimal import Decimal
 from pathlib import Path
 
 from PIL import Image, ImageDraw
+from PySide6.QtCore import QPointF
+from PySide6.QtWidgets import QGraphicsItem
 
 from app.database import Base, create_database_engine, create_session_factory
 from app.modules.artwork import (
@@ -16,7 +18,7 @@ from app.modules.customers import CustomerRepository  # noqa: F401
 from app.modules.gang_sheets import GangSheetInput, GangSheetRepository, GangSheetService
 from app.modules.orders import OrderRepository  # noqa: F401
 from app.ui.pages.artwork_studio import ArtworkStudioPage
-from app.ui.pages.gang_sheets import LayoutHistory
+from app.ui.pages.gang_sheets import LayoutHistory, PlacementItem
 
 
 def context(tmp_path: Path):
@@ -59,7 +61,7 @@ def test_create_place_quantity_nest_and_metre_usage(tmp_path: Path) -> None:
     assert len(placed.items) == 2
     assert placed.items[0].x_mm == Decimal("5.00")
     assert placed.items[1].x_mm > placed.items[0].x_mm
-    assert placed.metre_usage == Decimal("0.112")
+    assert placed.metre_usage == Decimal("0.250")
     duplicated = service.duplicate(placed.items[0].id, 1)
     assert len(duplicated.items) == 3
     engine.dispose()
@@ -125,6 +127,16 @@ def test_artwork_studio_defaults_and_hidden_width_allowance(tmp_path: Path, qtbo
     qtbot.addWidget(page)
 
     assert page.units.currentText() == "inches"
+    assert page.findChild(type(page.usage), "studioTitle").text() == "Production Studio"
+    assert page.add_designs_button.text() == "Add designs"
+    assert page.designs.isVisible() is False
+    assert page.apply_tools_button.isVisible() is False
+    assert page.object_units.currentText() == "inches"
+    assert page.rotation_value.isEnabled() is False
+    assert page.canvas.preview_colour is None
+    assert page.canvas.backgroundBrush().color().name() == "#111111"
+    assert page.canvas.canvas_scene.sceneRect().width() == 586.58
+    assert page.canvas.canvas_scene.sceneRect().height() == 1000.0
     assert page.sheet_width.value() == 22.7
     assert round(page.sheet_length.value(), 2) == 39.37
 
@@ -145,4 +157,85 @@ def test_artwork_studio_unit_switch_preserves_physical_size(tmp_path: Path, qtbo
 
     assert round(page.sheet_width.value(), 3) == 57.658
     assert page.sheet_length.value() == 100.0
+    engine.dispose()
+
+
+def test_artwork_studio_keeps_design_selected_across_canvas_refresh(
+    tmp_path: Path, qtbot
+) -> None:
+    engine, service, artwork_id, _ = context(tmp_path)
+    page = ArtworkStudioPage(service, service.artwork_service, auto_refresh=False)
+    qtbot.addWidget(page)
+    page.save_layout()
+    page.details = service.add_artwork(page.details.id, artwork_id)
+    page._render()
+    item_id = page.details.items[0].id
+    graphics_item = page.canvas.canvas_scene.items()[0]
+    graphics_item.setSelected(True)
+
+    page._render()
+
+    assert page.canvas.selected_ids() == (item_id,)
+    engine.dispose()
+
+
+def test_artwork_studio_copy_and_paste_duplicates_selected_design(
+    tmp_path: Path, qtbot
+) -> None:
+    engine, service, artwork_id, _ = context(tmp_path)
+    page = ArtworkStudioPage(service, service.artwork_service, auto_refresh=False)
+    qtbot.addWidget(page)
+    page.save_layout()
+    page.details = service.add_artwork(page.details.id, artwork_id)
+    page._render()
+    page.canvas.canvas_scene.items()[0].setSelected(True)
+
+    page.copy_selected()
+    page.paste_selected()
+
+    assert len(page.details.items) == 2
+    assert page.details.items[1].x_mm == page.details.items[0].x_mm + Decimal("8.00")
+    assert page.details.items[1].y_mm == page.details.items[0].y_mm + Decimal("8.00")
+    engine.dispose()
+
+
+def test_apply_copies_persists_one_selectable_copy_group(tmp_path: Path, qtbot) -> None:
+    engine, service, artwork_id, _ = context(tmp_path)
+    page = ArtworkStudioPage(service, service.artwork_service, auto_refresh=False)
+    qtbot.addWidget(page)
+    page.save_layout()
+    page.details = service.add_artwork(page.details.id, artwork_id)
+    page._render()
+    page.canvas.canvas_scene.items()[0].setSelected(True)
+    page.quantity.setValue(3)
+
+    page.apply_copies()
+
+    assert len(page.details.items) == 3
+    group_ids = {item.copy_group_id for item in page.details.items}
+    assert len(group_ids) == 1
+    assert None not in group_ids
+    loaded = service.get(page.details.id)
+    assert {item.copy_group_id for item in loaded.items} == group_ids
+    engine.dispose()
+
+
+def test_canvas_clamps_design_drag_inside_printable_page(tmp_path: Path, qtbot) -> None:
+    engine, service, artwork_id, _ = context(tmp_path)
+    page = ArtworkStudioPage(service, service.artwork_service, auto_refresh=False)
+    qtbot.addWidget(page)
+    page.save_layout()
+    page.details = service.add_artwork(page.details.id, artwork_id)
+    page._render()
+    graphics_item = next(
+        item for item in page.canvas.canvas_scene.items() if isinstance(item, PlacementItem)
+    )
+
+    clamped = graphics_item.itemChange(
+        QGraphicsItem.GraphicsItemChange.ItemPositionChange,
+        QPointF(-500, -500),
+    )
+
+    assert clamped.x() >= float(page.details.margin_mm)
+    assert clamped.y() >= float(page.details.margin_mm)
     engine.dispose()

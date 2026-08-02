@@ -241,6 +241,28 @@ def test_image_editor_displays_import_at_native_resolution(qtbot, tmp_path) -> N
     assert page._pixmap.size().height() == 80
 
 
+def test_image_editor_reuses_an_already_open_design_tab(qtbot, tmp_path) -> None:
+    first = tmp_path / "first.png"
+    second = tmp_path / "second.png"
+    for path, colour in ((first, "#3366CC"), (second, "#CC6633")):
+        image = QImage(20, 20, QImage.Format.Format_ARGB32)
+        image.fill(QColor(colour))
+        assert image.save(str(path))
+    page = ImageEditorPage()
+    qtbot.addWidget(page)
+
+    assert page.load_image(first) is True
+    assert page.load_image(second) is True
+    assert page.document_tabs.count() == 2
+    assert page.document_tabs.currentIndex() == 1
+
+    assert page.load_image(first) is True
+
+    assert page.document_tabs.count() == 2
+    assert page.document_tabs.currentIndex() == 0
+    assert page._image_path == first
+
+
 def test_image_editor_opens_multiple_images_into_independent_tabs(
     qtbot,
     tmp_path,
@@ -407,6 +429,21 @@ def test_image_editor_saves_opened_customer_image_to_same_file(
     page.save_customer_image()
 
     assert service.replacements == [(42, source)]
+
+
+def test_order_design_keeps_managed_file_identity_in_editor(qtbot, tmp_path) -> None:
+    source = tmp_path / "CR0001 - DE1 - design.png"
+    image = QImage(30, 20, QImage.Format.Format_ARGB32)
+    image.fill(QColor("#3366CC"))
+    assert image.save(str(source))
+    window = MainWindow()
+    qtbot.addWidget(window)
+
+    window._open_designs_in_editor([(source, 41)])
+
+    assert window.router.current_page_name == "image_editor"
+    assert window.image_editor_page._source_file_id == 41
+    assert window.image_editor_page._image_path == source
 
 
 def test_image_editor_trims_transparency_and_crop_extends_canvas(

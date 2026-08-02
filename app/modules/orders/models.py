@@ -28,6 +28,7 @@ class Order(Base):
     priority: Mapped[str] = mapped_column(String(20), default="Normal")
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     notes: Mapped[str] = mapped_column(Text, default="")
+    design_file_ids: Mapped[str] = mapped_column(Text, default="")
     subtotal: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     discount: Mapped[Decimal] = mapped_column(Numeric(14, 2))
     tax: Mapped[Decimal] = mapped_column(Numeric(14, 2))

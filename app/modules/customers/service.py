@@ -352,6 +352,30 @@ class CustomerService:
         self._storage_service.synchronize_async()
         return record
 
+    def next_customer_design_filenames(
+        self, customer_id: int, source_names: list[str]
+    ) -> list[str]:
+        """Preview the sequential customer design names used during upload."""
+
+        self._require("customers.view")
+        details = self.ensure_customer_storage(customer_id)
+        if self._storage_service is None:
+            raise RuntimeError("File storage is unavailable")
+        pattern = re.compile(
+            rf"^{re.escape(details.summary.code)} - DE([0-9]+) - ",
+            re.IGNORECASE,
+        )
+        used_numbers = [
+            int(match.group(1))
+            for item in self._storage_service.list_prefix(details.storage_prefix)
+            if (match := pattern.match(item.original_name)) is not None
+        ]
+        first_number = max(used_numbers, default=0) + 1
+        return [
+            f"{details.summary.code} - DE{first_number + index} - {source_name}"
+            for index, source_name in enumerate(source_names)
+        ]
+
     def customer_file_url(self, cloud_file_id: int) -> str:
         self._require("customers.view")
         if self._storage_service is None:
@@ -363,6 +387,12 @@ class CustomerService:
         if self._storage_service is None:
             raise RuntimeError("File storage is unavailable")
         return self._storage_service.download(cloud_file_id, destination)
+
+    def customer_file(self, cloud_file_id: int):
+        self._require("customers.view")
+        if self._storage_service is None:
+            raise RuntimeError("File storage is unavailable")
+        return self._storage_service.get(cloud_file_id)
 
     def replace_customer_file(self, cloud_file_id: int, source: Path):
         """Replace a managed customer file while retaining its ID and folder path."""

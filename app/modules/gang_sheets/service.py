@@ -6,7 +6,7 @@ import re
 from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageOps
 
 from app.modules.artwork import ArtworkService
 from app.modules.authentication import AuthenticationService
@@ -134,8 +134,6 @@ class GangSheetService:
         }
         if any(value <= 0 for key, value in values.items() if key in {"width_mm", "height_mm"}):
             raise ValueError("Item dimensions must be positive")
-        if rotation_degrees is not None and rotation_degrees % 90:
-            raise ValueError("Rotation must use 90-degree increments")
         item, sheet = self._find_item(item_id)
         proposed_x = x_mm if x_mm is not None else item.x_mm
         proposed_y = y_mm if y_mm is not None else item.y_mm
@@ -163,11 +161,37 @@ class GangSheetService:
         self._require("gang_sheets.manage")
         return self.get(self.repository.delete_item(item_id))
 
+    def paste_item(self, sheet_id: int, placement: Placement) -> GangSheetDetails:
+        self._require("gang_sheets.manage")
+        sheet = self.get(sheet_id)
+        x_mm = placement.x_mm + Decimal("8")
+        y_mm = placement.y_mm + Decimal("8")
+        if x_mm + placement.width_mm > sheet.width_mm - sheet.margin_mm:
+            x_mm = sheet.margin_mm
+        if y_mm + placement.height_mm > sheet.length_mm - sheet.margin_mm:
+            y_mm = sheet.margin_mm
+        self.repository.add_item(
+            sheet_id,
+            artwork_version_id=placement.artwork_version_id,
+            x_mm=x_mm,
+            y_mm=y_mm,
+            width_mm=placement.width_mm,
+            height_mm=placement.height_mm,
+            rotation_degrees=placement.rotation_degrees,
+            mirrored=placement.mirrored,
+        )
+        return self.get(sheet_id)
+
     def duplicate(self, item_id: int, quantity: int) -> GangSheetDetails:
         self._require("gang_sheets.manage")
         if quantity < 1 or quantity > 1000:
             raise ValueError("Quantity must be between 1 and 1000")
         item, sheet = self._find_item(item_id)
+        group_id = max(
+            (value.copy_group_id or 0 for value in sheet.items),
+            default=0,
+        ) + 1
+        self.repository.update_item(item.id, copy_group_id=group_id)
         for _ in range(quantity):
             self.repository.add_item(
                 sheet.id,
@@ -177,8 +201,69 @@ class GangSheetService:
                 width_mm=item.width_mm,
                 height_mm=item.height_mm,
                 rotation_degrees=item.rotation_degrees,
+                copy_group_id=group_id,
+                mirrored=item.mirrored,
             )
         return self.auto_nest(sheet.id)
+
+    def move_item_or_group(
+        self, item_id: int, *, x_mm: Decimal, y_mm: Decimal
+    ) -> GangSheetDetails:
+        item, sheet = self._find_item(item_id)
+        if item.copy_group_id is None:
+            return self.update_item(item_id, x_mm=x_mm, y_mm=y_mm)
+        delta_x = x_mm - item.x_mm
+        delta_y = y_mm - item.y_mm
+        members = [
+            value for value in sheet.items if value.copy_group_id == item.copy_group_id
+        ]
+        if any(
+            value.x_mm + delta_x < sheet.margin_mm
+            or value.y_mm + delta_y < sheet.margin_mm
+            or value.x_mm + delta_x + value.width_mm > sheet.width_mm - sheet.margin_mm
+            or value.y_mm + delta_y + value.height_mm > sheet.length_mm - sheet.margin_mm
+            for value in members
+        ):
+            raise ValueError("Copy group must remain within the sheet margins")
+        for value in members:
+            self.repository.update_item(
+                value.id,
+                x_mm=value.x_mm + delta_x,
+                y_mm=value.y_mm + delta_y,
+            )
+        return self.get(sheet.id)
+
+    def resize_selection(
+        self,
+        sheet_id: int,
+        item_ids: tuple[int, ...],
+        *,
+        width_mm: Decimal,
+        height_mm: Decimal,
+    ) -> GangSheetDetails:
+        sheet = self.get(sheet_id)
+        selected = [item for item in sheet.items if item.id in item_ids]
+        if not selected or width_mm <= 0 or height_mm <= 0:
+            raise ValueError("Select designs and enter positive dimensions")
+        left = min(item.x_mm for item in selected)
+        top = min(item.y_mm for item in selected)
+        right = max(item.x_mm + item.width_mm for item in selected)
+        bottom = max(item.y_mm + item.height_mm for item in selected)
+        scale_x = width_mm / max(right - left, Decimal("0.01"))
+        scale_y = height_mm / max(bottom - top, Decimal("0.01"))
+        if left + width_mm > sheet.width_mm - sheet.margin_mm:
+            raise ValueError("Resized selection exceeds the sheet width")
+        if top + height_mm > sheet.length_mm - sheet.margin_mm:
+            raise ValueError("Resized selection exceeds the sheet height")
+        for item in selected:
+            self.repository.update_item(
+                item.id,
+                x_mm=left + (item.x_mm - left) * scale_x,
+                y_mm=top + (item.y_mm - top) * scale_y,
+                width_mm=item.width_mm * scale_x,
+                height_mm=item.height_mm * scale_y,
+            )
+        return self.get(sheet_id)
 
     def align(self, sheet_id: int, item_ids: tuple[int, ...], edge: str) -> GangSheetDetails:
         self._require("gang_sheets.manage")
@@ -238,6 +323,9 @@ class GangSheetService:
     def preview_file(self, managed_path: str) -> Path:
         return self.artwork_service.preview_file(managed_path)
 
+    def original_file(self, managed_path: str) -> Path:
+        return self.artwork_service.original_file(managed_path)
+
     def restore_layout(self, sheet_id: int, placements: tuple[Placement, ...]) -> GangSheetDetails:
         self._require("gang_sheets.manage")
         return self._details(self.repository.replace_items(sheet_id, placements))
@@ -260,6 +348,8 @@ class GangSheetService:
                     (self._mm_to_px(item.width_mm), self._mm_to_px(item.height_mm)),
                     Image.Resampling.LANCZOS,
                 )
+                if item.mirrored:
+                    rendered = ImageOps.mirror(rendered)
                 if item.rotation_degrees % 360:
                     rendered = rendered.rotate(
                         -item.rotation_degrees,
@@ -304,12 +394,11 @@ class GangSheetService:
                 item.height_mm,
                 item.rotation_degrees,
                 item.z_index,
+                item.artwork_version.original_path,
+                item.copy_group_id,
+                item.mirrored,
             )
             for item in sheet.items
-        )
-        used_length = max(
-            (item.y_mm + cls._effective_size(item)[1] + sheet.margin_mm for item in items),
-            default=Decimal("0"),
         )
         return GangSheetDetails(
             sheet.id,
@@ -318,7 +407,9 @@ class GangSheetService:
             sheet.length_mm,
             sheet.margin_mm,
             sheet.spacing_mm,
-            (used_length / Decimal("1000")).quantize(Decimal("0.001"), rounding=ROUND_HALF_UP),
+            (sheet.length_mm / Decimal("1000")).quantize(
+                Decimal("0.001"), rounding=ROUND_HALF_UP
+            ),
             items,
         )
 

@@ -4,9 +4,10 @@ from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
+from tempfile import gettempdir
 
 from PySide6.QtCore import QEvent, QPoint, QSize, Qt, Signal
-from PySide6.QtGui import QBrush, QColor, QFontMetrics, QIcon, QInputDevice, QPainter, QPixmap
+from PySide6.QtGui import QBrush, QColor, QFontMetrics, QInputDevice, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -31,6 +32,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from app.modules.artwork import ArtworkInput, ArtworkService
 from app.modules.customers import CustomerService, CustomerStorageDateExistsError
 from app.modules.orders import (
     ORDER_STATUSES,
@@ -192,6 +194,8 @@ class OrderCreationDialog(QDialog):
         del product_service
         self.customer_service = customer_service
         self._staged_designs: list[Path] = []
+        self._uploaded_design_file_ids: list[int] = []
+        self._uploaded_design_records: list[tuple[Path, object]] = []
         self.setWindowTitle("New order")
         self.resize(720, 650)
         layout = QVBoxLayout(self)
@@ -282,20 +286,26 @@ class OrderCreationDialog(QDialog):
         )
         if not filenames:
             return
-        for filename in filenames:
-            source = Path(filename)
-            if source not in self._staged_designs:
-                self._add_design_preview(source)
+        sources = [Path(filename) for filename in filenames]
+        sources = [source for source in sources if source not in self._staged_designs]
+        try:
+            display_names = self.customer_service.next_customer_design_filenames(
+                int(customer_id),
+                [source.name for source in sources],
+            )
+        except (AttributeError, RuntimeError):
+            display_names = [source.name for source in sources]
+        for source, display_name in zip(sources, display_names, strict=True):
+            self._add_design_preview(source, display_name=display_name)
         self.import_design_status.setText(
             f"{len(self._staged_designs)} design(s) ready — files upload when you click Save"
         )
 
-    def _add_design_preview(self, source: Path) -> None:
+    def _add_design_preview(self, source: Path, *, display_name: str | None = None) -> None:
+        display_name = display_name or source.name
         pixmap = QPixmap(str(source))
-        item = QListWidgetItem(source.name)
-        if not pixmap.isNull():
-            item.setIcon(QIcon(pixmap))
-        item.setToolTip(str(source))
+        item = QListWidgetItem()
+        item.setToolTip(display_name)
         item.setData(Qt.ItemDataRole.UserRole, str(source))
         item.setSizeHint(QSize(210, 215))
         self.design_preview.addItem(item)
@@ -343,12 +353,12 @@ class OrderCreationDialog(QDialog):
         name.setFixedHeight(24)
         name.setText(
             QFontMetrics(name.font()).elidedText(
-                source.name,
+                display_name,
                 Qt.TextElideMode.ElideMiddle,
                 190,
             )
         )
-        name.setToolTip(str(source))
+        name.setToolTip(display_name)
         tile_layout.addWidget(name)
         self.design_preview.setItemWidget(item, tile)
 
@@ -376,6 +386,7 @@ class OrderCreationDialog(QDialog):
         return OrderInput(
             customer_id=int(self.customer.currentData()),
             order_type=self.order_type.currentText(),
+            design_file_ids=tuple(self._uploaded_design_file_ids),
         )
 
     def eventFilter(self, watched, event) -> bool:
@@ -408,12 +419,14 @@ class OrderCreationDialog(QDialog):
         failures = []
         for source in self._staged_designs:
             try:
-                self.customer_service.upload_customer_file(
+                record = self.customer_service.upload_customer_file(
                     customer_id,
                     date_name,
                     "Design",
                     source,
                 )
+                self._uploaded_design_file_ids.append(record.id)
+                self._uploaded_design_records.append((source, record))
             except Exception as error:
                 failures.append(f"{source.name}: {error}")
         if failures:
@@ -506,12 +519,14 @@ class OrderDetailsDialog(QDialog):
 
 class OrdersPage(QWidget):
     order_changed = Signal()
+    open_designs_requested = Signal(list)
 
     def __init__(
         self,
         service: OrderService,
         customer_service: CustomerService,
         product_service: ProductService,
+        artwork_service: ArtworkService | None = None,
         *,
         auto_refresh: bool = True,
         parent: QWidget | None = None,
@@ -520,6 +535,7 @@ class OrdersPage(QWidget):
         self.service = service
         self.customer_service = customer_service
         self.product_service = product_service
+        self.artwork_service = artwork_service
         self.order_ids: list[int] = []
         layout = QVBoxLayout(self)
         toolbar = QHBoxLayout()
@@ -529,8 +545,10 @@ class OrdersPage(QWidget):
         toolbar.addWidget(self.search, 1)
         toolbar.addWidget(new_order)
         layout.addLayout(toolbar)
-        self.table = QTableWidget(0, 4)
-        self.table.setHorizontalHeaderLabels(["Order", "Customer", "Product type", "Status"])
+        self.table = QTableWidget(0, 5)
+        self.table.setHorizontalHeaderLabels(
+            ["Order", "Customer", "Product type", "Open design", "Status"]
+        )
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -575,6 +593,12 @@ class OrdersPage(QWidget):
                 )
             ):
                 self.table.setItem(row, column, QTableWidgetItem(value))
+            open_designs = QPushButton("Open design")
+            open_designs.setObjectName("secondaryButton")
+            open_designs.clicked.connect(
+                lambda _checked=False, order_id=order.id: self.open_order_designs(order_id)
+            )
+            self.table.setCellWidget(row, 3, open_designs)
             status = QComboBox()
             if order.status == "Cancelled":
                 status.addItem("Canceled", "Cancelled")
@@ -598,7 +622,7 @@ class OrdersPage(QWidget):
                     control,
                 )
             )
-            self.table.setCellWidget(row, 3, status)
+            self.table.setCellWidget(row, 4, status)
 
     def _set_quick_status(self, order_id: int, control: QComboBox) -> None:
         status = control.currentData() or control.currentText()
@@ -620,9 +644,53 @@ class OrdersPage(QWidget):
         except (ValueError, LookupError) as error:
             QMessageBox.warning(self, "Order not created", str(error))
             return
+        if self.artwork_service is not None:
+            for source, record in dialog._uploaded_design_records:
+                try:
+                    self.artwork_service.upload(
+                        ArtworkInput(
+                            title=Path(record.original_name).stem,
+                            source_path=source,
+                            customer_id=dialog.order_input().customer_id,
+                            order_id=details.summary.id,
+                            notes="Imported during order creation",
+                        )
+                    )
+                except (ValueError, OSError) as error:
+                    QMessageBox.warning(
+                        self,
+                        "Design Library import failed",
+                        f"{record.original_name}: {error}",
+                    )
         self.refresh()
         self.order_changed.emit()
         OrderDetailsDialog(self.service, details, self).exec()
+
+    def open_order_designs(self, order_id: int) -> None:
+        details = self.service.get_order(order_id)
+        if not details.design_file_ids:
+            QMessageBox.information(self, "Open designs", "This order has no saved designs.")
+            return
+        designs: list[tuple[Path, int]] = []
+        failures: list[str] = []
+        cache = Path(gettempdir()) / "kms_dtf_erp_order_designs"
+        for file_id in details.design_file_ids:
+            try:
+                record = self.customer_service.customer_file(file_id)
+                named_path = cache / str(file_id) / record.original_name
+                cached_path = Path(record.local_path)
+                named_path.parent.mkdir(parents=True, exist_ok=True)
+                if cached_path.is_file():
+                    named_path.write_bytes(cached_path.read_bytes())
+                elif not named_path.is_file():
+                    self.customer_service.download_customer_file(file_id, named_path)
+                designs.append((named_path, file_id))
+            except Exception as error:
+                failures.append(f"Design {file_id}: {error}")
+        if failures:
+            QMessageBox.warning(self, "Some designs could not be opened", "\n".join(failures))
+        if designs:
+            self.open_designs_requested.emit(designs)
 
     def view_selected(self) -> None:
         row = self.table.currentRow()

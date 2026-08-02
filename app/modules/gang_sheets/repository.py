@@ -78,6 +78,8 @@ class GangSheetRepository:
         width_mm: Decimal,
         height_mm: Decimal,
         rotation_degrees: int = 0,
+        copy_group_id: int | None = None,
+        mirrored: bool = False,
     ) -> GangSheet:
         with session_scope(self.factory) as session:
             sheet = session.get(GangSheet, sheet_id)
@@ -99,6 +101,8 @@ class GangSheetRepository:
                     height_mm=height_mm,
                     rotation_degrees=rotation_degrees,
                     z_index=(z_index or 0) + 1,
+                    copy_group_id=copy_group_id,
+                    mirrored=mirrored,
                 )
             )
         return self._required(sheet_id)
@@ -141,6 +145,8 @@ class GangSheetRepository:
                         height_mm=placement.height_mm,
                         rotation_degrees=placement.rotation_degrees,
                         z_index=index,
+                        copy_group_id=placement.copy_group_id,
+                        mirrored=placement.mirrored,
                     )
                 )
         return self._required(sheet_id)

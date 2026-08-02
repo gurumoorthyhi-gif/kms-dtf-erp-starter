@@ -20,6 +20,7 @@ class OrderInput:
     due_date: date | None = None
     priority: str = "Normal"
     notes: str = ""
+    design_file_ids: tuple[int, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,3 +76,4 @@ class OrderDetails:
     advance: Decimal
     items: tuple[OrderItemDetails, ...]
     status_history: tuple[StatusHistoryItem, ...]
+    design_file_ids: tuple[int, ...] = ()

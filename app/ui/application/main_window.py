@@ -26,6 +26,7 @@ from app.modules.orders import OrderService
 from app.modules.products import ProductService
 from app.modules.sales import SalesService
 from app.modules.shipping import DispatchService, PackingService
+from app.modules.whatsapp_workspace import WhatsAppWorkspaceHost
 from app.ui.application.router import PageRouter
 from app.ui.branding import application_icon
 from app.ui.components import GlassApplicationBackground, Sidebar, TopBar
@@ -51,7 +52,6 @@ from app.ui.pages import (
     SalesPage,
     SettingsPage,
     SuppliersPage,
-    WhatsAppInboxPage,
 )
 from app.ui.themes import APP_STYLESHEET
 
@@ -77,7 +77,7 @@ class MainWindow(QMainWindow):
         "packing": ("Packing", "Packing lists, package counts, and weights"),
         "dispatch": ("Dispatch", "Couriers, tracking, labels, and delivery"),
         "cloud_storage": ("Cloud Storage", "Offline queue, transfers, and synchronization"),
-        "whatsapp": ("WhatsApp", "Shared customer conversation inbox"),
+        "whatsapp": ("WhatsApp Workspace", "Official WhatsApp Web inside KMS ERP"),
         "email": ("Email", "Customer email inbox and history"),
         "operations": ("Reports & Backup", "Reports, verified backup, restore, and audit"),
         "settings": ("Settings", "Application preferences"),
@@ -218,9 +218,11 @@ class MainWindow(QMainWindow):
                 order_service,
                 customer_service,
                 product_service,
+                artwork_service,
                 auto_refresh=False,
             )
             self.orders_page.order_changed.connect(self.dashboard_page.refresh)
+            self.orders_page.open_designs_requested.connect(self._open_designs_in_editor)
             self.router.register_page("orders", self.orders_page)
         self.sidebar.set_page_visible("orders", self.orders_page is not None)
         self.artwork_page: ArtworkLibraryPage | None = None
@@ -251,8 +253,11 @@ class MainWindow(QMainWindow):
             self.studio_page = ArtworkStudioPage(
                 gang_sheet_service,
                 artwork_service,
+                customer_service,
                 auto_refresh=False,
             )
+            if self.orders_page is not None:
+                self.orders_page.order_changed.connect(self.studio_page.refresh)
             self.router.register_page("studio", self.studio_page)
         self.sidebar.set_page_visible("studio", self.studio_page is not None)
         self.image_editor_page = ImageEditorPage(customer_service)
@@ -306,11 +311,9 @@ class MainWindow(QMainWindow):
             self.cloud_storage_page = CloudStoragePage(cloud_storage_service, auto_refresh=False)
             self.router.register_page("cloud_storage", self.cloud_storage_page)
         self.sidebar.set_page_visible("cloud_storage", self.cloud_storage_page is not None)
-        self.whatsapp_page: WhatsAppInboxPage | None = None
-        if whatsapp_service is not None:
-            self.whatsapp_page = WhatsAppInboxPage(whatsapp_service, auto_refresh=False)
-            self.router.register_page("whatsapp", self.whatsapp_page)
-        self.sidebar.set_page_visible("whatsapp", self.whatsapp_page is not None)
+        self.whatsapp_page = WhatsAppWorkspaceHost()
+        self.router.register_page("whatsapp", self.whatsapp_page)
+        self.sidebar.set_page_visible("whatsapp", True)
         self.email_page: EmailInboxPage | None = None
         if email_service is not None:
             self.email_page = EmailInboxPage(email_service, auto_refresh=False)
@@ -413,6 +416,20 @@ class MainWindow(QMainWindow):
         self.sidebar.set_active_page(page_name)
         self.top_bar.set_page_context(title, subtitle)
 
+    def _open_designs_in_editor(self, designs: list) -> None:
+        opened = False
+        for design in designs:
+            if isinstance(design, tuple):
+                path, source_file_id = design
+            else:
+                path, source_file_id = design, None
+            opened = (
+                self.image_editor_page.load_image(path, source_file_id=source_file_id)
+                or opened
+            )
+        if opened:
+            self.navigate("image_editor")
+
     def _show_login(self) -> None:
         self.sidebar.setVisible(False)
         self.top_bar.setVisible(False)
@@ -501,8 +518,6 @@ class MainWindow(QMainWindow):
         can_view_communications = "communications.view" in user.permissions
         if self.whatsapp_page is not None:
             self.sidebar.set_page_visible("whatsapp", can_view_communications)
-            if can_view_communications:
-                self.whatsapp_page.refresh()
         if self.email_page is not None:
             self.sidebar.set_page_visible("email", can_view_communications)
             if can_view_communications:

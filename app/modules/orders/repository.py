@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import date
 from decimal import Decimal
 
@@ -42,6 +43,7 @@ class OrderRepository:
         priority: str,
         due_date: date | None,
         notes: str,
+        design_file_ids: tuple[int, ...],
         subtotal: Decimal,
         discount: Decimal,
         tax: Decimal,
@@ -59,6 +61,7 @@ class OrderRepository:
                 priority=priority,
                 due_date=due_date,
                 notes=notes,
+                design_file_ids=json.dumps(design_file_ids),
                 subtotal=subtotal,
                 discount=discount,
                 tax=tax,

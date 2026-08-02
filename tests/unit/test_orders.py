@@ -121,6 +121,16 @@ def test_create_information_only_order_leaves_billing_values_empty(orders) -> No
     assert order.items == ()
 
 
+def test_order_keeps_uploaded_design_file_ids(orders) -> None:
+    service, customer_id, _product_id, _ = orders
+
+    order = service.create_order(
+        OrderInput(customer_id=customer_id, design_file_ids=(41, 42))
+    )
+
+    assert order.design_file_ids == (41, 42)
+
+
 def test_quick_order_status_cannot_be_reversed(orders) -> None:
     service, customer_id, _product_id, _ = orders
     order = service.create_order(OrderInput(customer_id=customer_id, order_type="DTF"))

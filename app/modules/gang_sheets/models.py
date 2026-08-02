@@ -6,7 +6,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Numeric, String
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -54,5 +54,7 @@ class GangSheetItem(Base):
     height_mm: Mapped[Decimal] = mapped_column(Numeric(10, 2))
     rotation_degrees: Mapped[int] = mapped_column(default=0)
     z_index: Mapped[int] = mapped_column(default=0)
+    copy_group_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    mirrored: Mapped[bool] = mapped_column(Boolean, default=False)
     gang_sheet: Mapped[GangSheet] = relationship(back_populates="items")
     artwork_version: Mapped[ArtworkVersion] = relationship()
