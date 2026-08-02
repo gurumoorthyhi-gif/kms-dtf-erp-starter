@@ -4,6 +4,8 @@ Phase 1 embeds the official WhatsApp Web site in KMS ERP using Qt WebEngine. It 
 
 The workspace is lazy-loaded from the existing **WhatsApp** sidebar route. Its named browser profile is stored per Windows user under `AppData/Local/KMS ERP/browser_profiles/whatsapp`, with separate persistent-storage and disk-cache directories. Cookies therefore survive an ERP restart. **Clear session** deletes cookies, clears WebEngine cache and browser local/session storage, then returns to WhatsApp Home; the user must scan the QR code again.
 
+The profile advertises the actual Chromium version bundled with Qt using a standard Windows Chrome user agent. This avoids WhatsApp's unsupported-browser screen, which otherwise rejects the `QtWebEngine` product token despite the embedded Chromium build being current.
+
 Top-level navigation is HTTPS-only and centrally allow-listed for WhatsApp and the supporting WhatsApp/Facebook CDN domains. Blocked links require an explicit confirmation before opening in the system browser. Query strings, fragments, credentials, and ports are removed from the URL displayed in that warning or suitable for logs.
 
 If Qt WebEngine cannot load, the rest of KMS ERP remains usable and the WhatsApp page displays a direct dependency error with a retry action.
